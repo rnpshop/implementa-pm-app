@@ -764,11 +764,99 @@ const ProductsDashboard=({user,token,onLogout})=>{
   );
 };
 
+
+// ── MINI CHART ───────────────────────────────────────────────
+const BarChart=({data,colors})=>{
+  const max=Math.max(...data.map(d=>d.value),1);
+  return(
+    <div style={{display:"flex",alignItems:"flex-end",gap:8,height:80}}>
+      {data.map((d,i)=>(
+        <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+          <div style={{fontSize:11,color:colors[i]||C.accent,fontWeight:700}}>{d.value}</div>
+          <div style={{width:"100%",background:colors[i]||C.accent,borderRadius:"4px 4px 0 0",height:`${(d.value/max)*60}px`,minHeight:4,transition:"height .5s",opacity:0.85}}/>
+          <div style={{fontSize:9,color:C.muted,textAlign:"center",lineHeight:1.2}}>{d.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const DonutChart=({value,total,color,label})=>{
+  const pct=total>0?Math.round((value/total)*100):0;
+  const r=36,circ=2*Math.PI*r,offset=circ-(pct/100)*circ;
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+      <svg width={88} height={88} style={{transform:"rotate(-90deg)"}}>
+        <circle cx={44} cy={44} r={r} fill="none" stroke={C.border} strokeWidth={10}/>
+        <circle cx={44} cy={44} r={r} fill="none" stroke={color} strokeWidth={10} strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{transition:"stroke-dashoffset .8s"}}/>
+        <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill={color} fontSize={14} fontFamily={FONT} fontWeight="700" style={{transform:"rotate(90deg)",transformOrigin:"center"}}>{pct}%</text>
+      </svg>
+      <div style={{textAlign:"center"}}>
+        <div style={{color,fontSize:12,fontWeight:700}}>{value}/{total}</div>
+        <div style={{color:C.muted,fontSize:11}}>{label}</div>
+      </div>
+    </div>
+  );
+};
+
+const KanbanView=({projects,onOpenProject,onMovePhase})=>{
+  const [dragging,setDragging]=useState(null);
+  const cols=PHASES.map((phase,i)=>({phase,i,projects:projects.filter(p=>(p.phase||0)===i)}));
+  return(
+    <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:12,minHeight:400}}>
+      {cols.map(col=>(
+        <div key={col.i} style={{minWidth:220,width:220,flexShrink:0}}
+          onDragOver={e=>{e.preventDefault();}}
+          onDrop={e=>{e.preventDefault();if(dragging!==null){onMovePhase(dragging,col.i);setDragging(null);}}}
+        >
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 10px",background:C.subtle,borderRadius:8}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:col.i===0?C.muted:col.i===PHASES.length-1?C.purple:C.accent}}/>
+            <span style={{color:C.text,fontSize:12,fontWeight:600,fontFamily:FONT}}>{col.phase}</span>
+            <span style={{marginLeft:"auto",background:C.border,color:C.muted,borderRadius:10,fontSize:10,padding:"1px 7px"}}>{col.projects.length}</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {col.projects.map(p=>{
+              const op=(p.pendings||[]).filter(x=>x.status==="open").length;
+              return(
+                <div key={p.id} draggable
+                  onDragStart={()=>setDragging(p.id)}
+                  onDragEnd={()=>setDragging(null)}
+                  onClick={()=>onOpenProject(p)}
+                  style={{background:dragging===p.id?C.accentDim:C.card,border:`1px solid ${op>0?C.warn+"50":C.border}`,borderRadius:10,padding:12,cursor:"grab",transition:"all .2s",opacity:dragging===p.id?0.5:1}}
+                >
+                  <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:13,marginBottom:4}}>{p.name}</div>
+                  <div style={{color:C.muted,fontSize:11,marginBottom:8}}>{p.client}</div>
+                  <div style={{height:3,background:C.border,borderRadius:2,marginBottom:8}}>
+                    <div style={{height:"100%",background:C.accent,borderRadius:2,width:`${p.progress||0}%`,transition:"width .5s"}}/>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:10,color:p.daysLeft<0?C.danger:p.daysLeft<7?C.warn:C.muted}}>
+                      {p.daysLeft===null?"—":p.daysLeft<0?`${Math.abs(p.daysLeft)}d atraso`:p.daysLeft===0?"Hoje":`${p.daysLeft}d`}
+                    </span>
+                    <div style={{display:"flex",gap:4}}>
+                      {op>0&&<span style={{background:C.warn+"20",color:C.warn,borderRadius:10,fontSize:10,padding:"1px 6px"}}>⚠{op}</span>}
+                      <span style={{color:C.muted,fontSize:10}}>{p.progress||0}%</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {col.projects.length===0&&(
+              <div style={{border:`2px dashed ${C.border}`,borderRadius:10,padding:"20px 10px",textAlign:"center",color:C.muted,fontSize:11}}>Arraste aqui</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ── DASHBOARD GESTOR ─────────────────────────────────────────
 const AdminDashboard=({user,token,onLogout})=>{
   const [projects,setProjects]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("dashboard");
+  const [viewMode,setViewMode]=useState("list"); // list | kanban
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState("tasks");
   const [tasks,setTasks]=useState([]);
@@ -776,6 +864,9 @@ const AdminDashboard=({user,token,onLogout})=>{
   const [messages,setMessages]=useState([]);
   const [products,setProducts]=useState([]);
   const [onboarding,setOnboarding]=useState(null);
+  const [editOnboarding,setEditOnboarding]=useState(false);
+  const [obForm,setObForm]=useState({});
+  const [users,setUsers]=useState([]);
   const [pulse,setPulse]=useState(false);
   const [saving,setSaving]=useState(false);
   const [newMsg,setNewMsg]=useState("");
@@ -783,10 +874,12 @@ const AdminDashboard=({user,token,onLogout})=>{
   const [assignee,setAssignee]=useState("Ana");
   const [filterSt,setFilterSt]=useState("all");
   const [showNP,setShowNP]=useState(false);
-  const [newProj,setNewProj]=useState({name:"",client:"",deadline:""});
+  const [newProj,setNewProj]=useState({name:"",client:"",deadline:"",manager:""});
   const [showPend,setShowPend]=useState(false);
   const [pendForm,setPendForm]=useState({type:"photos",note:"",urgency:"medium",channel:"email",days_blocking:1});
   const [pendStep,setPendStep]=useState(1);
+  const [editProj,setEditProj]=useState(false);
+  const [projForm,setProjForm]=useState({});
 
   const PTYPES=[{id:"logo",label:"Logotipo",icon:"🎨"},{id:"content",label:"Conteúdo",icon:"📝"},{id:"photos",label:"Fotos",icon:"📷"},{id:"access",label:"Acessos",icon:"🔑"},{id:"approval",label:"Aprovação",icon:"✅"},{id:"payment",label:"Pagamento",icon:"💳"},{id:"briefing",label:"Briefing",icon:"📋"},{id:"domain",label:"Domínio",icon:"🌐"},{id:"products",label:"Produtos",icon:"🛒"},{id:"feedback",label:"Feedback",icon:"💬"},{id:"other",label:"Outro",icon:"⚠️"}];
   const URGENCY=[{id:"low",label:"Baixa",color:C.accent},{id:"medium",label:"Média",color:C.warn},{id:"high",label:"Alta",color:C.danger}];
@@ -818,30 +911,78 @@ const AdminDashboard=({user,token,onLogout})=>{
   };
 
   const openProject=async(proj)=>{
-    setSel(proj);setTab("tasks");
+    setSel(proj);setTab("tasks");setEditProj(false);setEditOnboarding(false);
     setTasks(proj.tasks||[]);setPendings(proj.pendings||[]);setMessages(proj.messages||[]);
+    setProjForm({name:proj.name,client:proj.client,deadline:proj.deadline||"",status:proj.status,manager:proj.manager||""});
     const [ob,prods]=await Promise.all([api.get("onboarding",`project_id=eq.${proj.id}`),api.get("products",`project_id=eq.${proj.id}&order=created_at.desc`)]);
-    setOnboarding(ob&&ob.length>0?ob[0]:null);
+    const obData=ob&&ob.length>0?ob[0]:null;
+    setOnboarding(obData);
+    setObForm(obData||{});
     setProducts(prods||[]);
   };
 
   const createProject=async()=>{
     if(!newProj.name||!newProj.client) return; setSaving(true);
-    await api.post("projects",{name:newProj.name,client:newProj.client,phase:0,status:"on-track",progress:0,deadline:newProj.deadline||null});
-    setShowNP(false);setNewProj({name:"",client:"",deadline:""});await loadProjects();setSaving(false);
+    await api.post("projects",{name:newProj.name,client:newProj.client,phase:0,status:"on-track",progress:0,deadline:newProj.deadline||null,manager:newProj.manager||null});
+    setShowNP(false);setNewProj({name:"",client:"",deadline:"",manager:""});await loadProjects();setSaving(false);
+  };
+
+  const saveProject=async()=>{
+    if(!sel) return; setSaving(true);
+    await api.patch("projects",{id:sel.id},{name:projForm.name,client:projForm.client,deadline:projForm.deadline||null,status:projForm.status,manager:projForm.manager});
+    setSel(prev=>({...prev,...projForm}));
+    setProjects(prev=>prev.map(p=>p.id===sel.id?{...p,...projForm}:p));
+    setEditProj(false); setSaving(false);
+  };
+
+  const saveOnboarding=async()=>{
+    if(!sel) return; setSaving(true);
+    try{
+      if(onboarding){ await api.patch("onboarding",{project_id:sel.id},{...obForm}); }
+      else{ await api.post("onboarding",{...obForm,project_id:sel.id,status:"submitted"}); }
+      setOnboarding({...obForm,project_id:sel.id});
+      setEditOnboarding(false);
+    }catch(e){alert("Erro: "+e.message);}
+    setSaving(false);
+  };
+
+  const deleteProject=async()=>{
+    if(!sel||!window.confirm("Tem certeza que deseja excluir este projeto?")) return;
+    await api.del("projects",{id:sel.id});
+    setSel(null); await loadProjects();
   };
 
   const addTask=async()=>{ if(!newTask.trim()||!sel) return; setSaving(true); await api.post("tasks",{project_id:sel.id,title:newTask,assignee,done:false,phase:sel.phase||0}); setNewTask(""); await refreshSel(sel.id); setSaving(false); };
   const toggleTask=async(task)=>{ await api.patch("tasks",{id:task.id},{done:!task.done}); await refreshSel(sel.id); };
+  const deleteTask=async(id)=>{ await api.del("tasks",{id}); await refreshSel(sel.id); };
   const sendMessage=async()=>{ if(!newMsg.trim()||!sel) return; await api.post("messages",{project_id:sel.id,from_role:"team",text:newMsg}); setNewMsg(""); await refreshSel(sel.id); };
   const savePending=async()=>{ if(!sel) return; setSaving(true); await api.post("pendings",{project_id:sel.id,...pendForm,status:"open",sent_at:new Date().toISOString()}); await refreshSel(sel.id); setPendStep(3); setSaving(false); };
   const resolvePending=async(id)=>{ await api.patch("pendings",{id},{status:"resolved"}); await refreshSel(sel.id); };
   const advancePhase=async()=>{ if(!sel||sel.phase>=PHASES.length-1) return; const phase=sel.phase+1; await api.patch("projects",{id:sel.id},{phase}); setSel(prev=>({...prev,phase})); setProjects(prev=>prev.map(p=>p.id===sel.id?{...p,phase}:p)); };
+  const movePhase=async(projId,newPhase)=>{ await api.patch("projects",{id:projId},{phase:newPhase}); setProjects(prev=>prev.map(p=>p.id===projId?{...p,phase:newPhase}:p)); };
 
   const totalPend=projects.reduce((a,p)=>a+(p.pendings||[]).filter(x=>x.status==="open").length,0);
-  const stats={total:projects.length,onTrack:projects.filter(p=>p.status==="on-track").length,atRisk:projects.filter(p=>p.status==="at-risk").length,delayed:projects.filter(p=>p.status==="delayed").length};
+  const stats={
+    total:projects.length,
+    onTrack:projects.filter(p=>p.status==="on-track").length,
+    atRisk:projects.filter(p=>p.status==="at-risk").length,
+    delayed:projects.filter(p=>p.status==="delayed").length,
+    done:projects.filter(p=>p.status==="done").length,
+    avgProgress:projects.length>0?Math.round(projects.reduce((a,p)=>a+(p.progress||0),0)/projects.length):0,
+  };
   const filtered=filterSt==="all"?projects:projects.filter(p=>p.status===filterSt);
-  const navItems=[{id:"dashboard",label:"Dashboard",icon:"◈"},{id:"projects",label:"Projetos",icon:"⬡"},{id:"pendings",label:"Pendências",icon:"⚠",badge:totalPend,bc:C.warn},{id:"alerts",label:"Alertas",icon:"◉",badge:stats.delayed+stats.atRisk,bc:C.danger}];
+  const allOpenPendings=projects.flatMap(p=>(p.pendings||[]).filter(x=>x.status==="open").map(x=>({...x,project:p})));
+
+  const navItems=[
+    {id:"dashboard",label:"Dashboard",icon:"◈"},
+    {id:"kanban",label:"Kanban",icon:"⊞"},
+    {id:"projects",label:"Projetos",icon:"⬡"},
+    {id:"pendings",label:"Pendências",icon:"⚠",badge:totalPend,bc:C.warn},
+    {id:"alerts",label:"Alertas",icon:"◉",badge:stats.delayed+stats.atRisk,bc:C.danger},
+    {id:"users",label:"Usuários",icon:"👥"},
+  ];
+
+  const Label=({t})=>(<label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>{t}</label>);
 
   const PendModal=()=>{
     const pt=PTYPES.find(t=>t.id===pendForm.type);
@@ -857,11 +998,12 @@ const AdminDashboard=({user,token,onLogout})=>{
             </div>
             <textarea style={{...inp,minHeight:60,resize:"vertical",marginBottom:12}} placeholder="Detalhe..." value={pendForm.note} onChange={e=>setPendForm(f=>({...f,note:e.target.value}))}/>
             <div style={{display:"flex",gap:8,marginBottom:12}}>{URGENCY.map(u=><button key={u.id} onClick={()=>setPendForm(f=>({...f,urgency:u.id}))} style={{flex:1,background:pendForm.urgency===u.id?u.color+"20":C.surface,border:`1px solid ${pendForm.urgency===u.id?u.color:C.border}`,borderRadius:6,color:pendForm.urgency===u.id?u.color:C.muted,fontFamily:FONT,fontSize:11,padding:"7px",cursor:"pointer"}}>{u.label}</button>)}</div>
+            <div style={{marginBottom:12}}><Label t="DIAS BLOQUEANDO"/><input type="number" style={inp} min={0} value={pendForm.days_blocking} onChange={e=>setPendForm(f=>({...f,days_blocking:parseInt(e.target.value)||0}))}/></div>
             <div style={{display:"flex",gap:8,marginBottom:20}}>{CHANNELS.map(c=><button key={c.id} onClick={()=>setPendForm(f=>({...f,channel:c.id}))} style={{flex:1,background:pendForm.channel===c.id?C.accentDim:C.surface,border:`1px solid ${pendForm.channel===c.id?C.accent:C.border}`,borderRadius:8,color:pendForm.channel===c.id?C.accent:C.muted,fontFamily:FONT,fontSize:12,padding:"10px",cursor:"pointer"}}>{c.icon} {c.label}</button>)}</div>
             <div style={{display:"flex",gap:10}}><button onClick={()=>setPendStep(2)} style={{...btnP,flex:1}}>Ver Prévia →</button><button onClick={()=>setShowPend(false)} style={btnG}>Cancelar</button></div>
           </>}
           {pendStep===2&&<>
-            <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:14}}>Prévia</div>
+            <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:14}}>Prévia da Notificação</div>
             <pre style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",fontSize:12,fontFamily:FONT,color:C.text,whiteSpace:"pre-wrap",marginBottom:14,lineHeight:1.7}}>{emailPrev}</pre>
             <div style={{display:"flex",gap:10}}><button onClick={savePending} disabled={saving} style={{...btnP,flex:1}}>{saving?<Spinner small/>:"✓ Confirmar"}</button><button onClick={()=>setPendStep(1)} style={btnG}>← Editar</button></div>
           </>}
@@ -871,13 +1013,101 @@ const AdminDashboard=({user,token,onLogout})=>{
     );
   };
 
-  const StatCard=({label,value,color,icon})=>(<div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",display:"flex",alignItems:"center",gap:14,flex:1,minWidth:120}}><span style={{fontSize:24}}>{icon}</span><div><div style={{color:C.muted,fontSize:10,fontFamily:FONT,letterSpacing:"0.1em",textTransform:"uppercase"}}>{label}</div><div style={{color:color||C.text,fontSize:26,fontFamily:FONT_D,fontWeight:800,lineHeight:1.1}}>{value}</div></div></div>);
+  const StatCard=({label,value,color,icon,sub})=>(
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"18px 20px",display:"flex",alignItems:"center",gap:14,flex:1,minWidth:120}}>
+      <span style={{fontSize:24}}>{icon}</span>
+      <div>
+        <div style={{color:C.muted,fontSize:10,fontFamily:FONT,letterSpacing:"0.1em",textTransform:"uppercase"}}>{label}</div>
+        <div style={{color:color||C.text,fontSize:26,fontFamily:FONT_D,fontWeight:800,lineHeight:1.1}}>{value}</div>
+        {sub&&<div style={{color:C.muted,fontSize:10,marginTop:2}}>{sub}</div>}
+      </div>
+    </div>
+  );
+
+  // ── USERS VIEW ────────────────────────────────────────────
+  const UsersView=()=>{
+    const [userList,setUserList]=useState([]);
+    const [loadingU,setLoadingU]=useState(true);
+    const [editUser,setEditUser]=useState(null);
+    const [newRole,setNewRole]=useState("");
+
+    useEffect(()=>{
+      api.get("profiles","order=created_at.desc").then(d=>{setUserList(d||[]);setLoadingU(false);});
+    },[]);
+
+    const saveRole=async()=>{
+      await api.patch("profiles",{id:editUser.id},{role:newRole});
+      setUserList(prev=>prev.map(u=>u.id===editUser.id?{...u,role:newRole}:u));
+      setEditUser(null);
+    };
+
+    const ROLES=[{id:"admin",label:"📊 Gestor",color:C.accent},{id:"tech",label:"🔧 Colaborador Técnico",color:C.blue},{id:"products",label:"📦 Produtos",color:C.purple},{id:"client",label:"👤 Cliente",color:C.warn}];
+
+    return(
+      <div>
+        <div style={{fontFamily:FONT_D,fontSize:28,fontWeight:800,marginBottom:4}}>Usuários</div>
+        <div style={{color:C.muted,fontSize:13,marginBottom:24}}>{userList.length} usuário(s) cadastrado(s)</div>
+        {loadingU?<Spinner/>:userList.map(u=>{
+          const role=ROLES.find(r=>r.id===u.role)||ROLES[3];
+          return(
+            <div key={u.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 18px",marginBottom:10,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+              <div style={{width:40,height:40,borderRadius:"50%",background:C.subtle,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                {u.name?u.name[0].toUpperCase():"?"}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:14}}>{u.name||"Sem nome"}</div>
+                <div style={{color:C.muted,fontSize:12}}>{u.id}</div>
+              </div>
+              <span style={{background:role.color+"20",color:role.color,border:`1px solid ${role.color}40`,borderRadius:6,padding:"3px 10px",fontSize:12,fontFamily:FONT}}>{role.label}</span>
+              <button onClick={()=>{setEditUser(u);setNewRole(u.role||"client");}} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:6,color:C.accent,fontFamily:FONT,fontSize:11,padding:"5px 12px",cursor:"pointer"}}>Editar Perfil</button>
+            </div>
+          );
+        })}
+        {editUser&&(
+          <div style={{position:"fixed",inset:0,background:"#000A",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:28,width:380,maxWidth:"90vw"}}>
+              <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800,marginBottom:4}}>Editar Perfil</div>
+              <div style={{color:C.muted,fontSize:12,marginBottom:20}}>{editUser.name}</div>
+              <Label t="PERFIL DE ACESSO"/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
+                {ROLES.map(r=>(<button key={r.id} onClick={()=>setNewRole(r.id)} style={{background:newRole===r.id?r.color+"20":C.surface,border:`1px solid ${newRole===r.id?r.color:C.border}`,borderRadius:8,color:newRole===r.id?r.color:C.muted,fontFamily:FONT,fontSize:12,padding:"10px",cursor:"pointer"}}>{r.label}</button>))}
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button onClick={saveRole} style={{...btnP,flex:1}}>Salvar</button>
+                <button onClick={()=>setEditUser(null)} style={btnG}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:FONT,color:C.text,display:"flex"}}>
       <style>{GLOBAL_STYLE}</style>
       {showPend&&<PendModal/>}
-      {showNP&&(<div style={{position:"fixed",inset:0,background:"#000A",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:32,width:420,maxWidth:"90vw"}}><div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,marginBottom:22}}>Novo Projeto</div>{[["Nome do projeto","name","Ex: Loja XYZ"],["Cliente","client","Ex: XYZ LTDA"]].map(([l,k,ph])=>(<div key={k} style={{marginBottom:12}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>{l.toUpperCase()}</label><input style={inp} placeholder={ph} value={newProj[k]} onChange={e=>setNewProj(p=>({...p,[k]:e.target.value}))}/></div>))}<div style={{marginBottom:20}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>DATA DE ENTREGA</label><input type="date" style={inp} value={newProj.deadline} onChange={e=>setNewProj(p=>({...p,deadline:e.target.value}))}/></div><div style={{display:"flex",gap:10}}><button onClick={createProject} disabled={saving} style={{...btnP,flex:1}}>{saving?"Criando...":"Criar"}</button><button onClick={()=>setShowNP(false)} style={btnG}>Cancelar</button></div></div></div>)}
+
+      {/* MODAL NOVO PROJETO */}
+      {showNP&&(
+        <div style={{position:"fixed",inset:0,background:"#000A",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:32,width:440,maxWidth:"90vw"}}>
+            <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,marginBottom:22}}>Novo Projeto</div>
+            {[["Nome do projeto","name","Ex: Loja XYZ"],["Cliente","client","Ex: XYZ LTDA"],["Gestor responsável","manager","Ex: Rafael"]].map(([l,k,ph])=>(
+              <div key={k} style={{marginBottom:12}}>
+                <Label t={l.toUpperCase()}/>
+                <input style={inp} placeholder={ph} value={newProj[k]} onChange={e=>setNewProj(p=>({...p,[k]:e.target.value}))}/>
+              </div>
+            ))}
+            <div style={{marginBottom:12}}><Label t="STATUS INICIAL"/><select style={inp} value={newProj.status||"on-track"} onChange={e=>setNewProj(p=>({...p,status:e.target.value}))}>{Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
+            <div style={{marginBottom:20}}><Label t="DATA DE ENTREGA"/><input type="date" style={inp} value={newProj.deadline} onChange={e=>setNewProj(p=>({...p,deadline:e.target.value}))}/></div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={createProject} disabled={saving} style={{...btnP,flex:1,opacity:saving?0.6:1}}>{saving?"Criando...":"Criar Projeto"}</button>
+              <button onClick={()=>setShowNP(false)} style={btnG}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SIDEBAR */}
       <div style={{width:220,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",padding:"28px 0",minHeight:"100vh",position:"sticky",top:0}}>
@@ -890,7 +1120,7 @@ const AdminDashboard=({user,token,onLogout})=>{
         </nav>
         <div style={{padding:"20px 16px 0",borderTop:`1px solid ${C.border}`,marginTop:24}}>
           <button onClick={()=>setShowNP(true)} style={{...btnP,width:"100%",fontSize:12,marginBottom:8}}>+ Novo Projeto</button>
-          <div style={{color:C.muted,fontSize:10,marginBottom:8}}><span style={{color:pulse?C.accent:C.muted,transition:"color .5s"}}>●</span> {projects.filter(p=>p.status!=="done").length} ativos</div>
+          <div style={{color:C.muted,fontSize:10,marginBottom:8}}><span style={{color:pulse?C.accent:C.muted,transition:"color .5s"}}>●</span> {projects.filter(p=>p.status!=="done").length} ativos · <span style={{color:C.accent}}>DB ✓</span></div>
           <div style={{color:C.muted,fontSize:11,marginBottom:6}}>📊 {user?.email?.split("@")[0]}</div>
           <button onClick={onLogout} style={{...btnG,width:"100%",fontSize:11,padding:"7px"}}>Sair</button>
         </div>
@@ -899,41 +1129,300 @@ const AdminDashboard=({user,token,onLogout})=>{
       {/* MAIN */}
       <div style={{flex:1,overflow:"auto",padding:"36px 40px"}}>
         {sel?(
+          // ── DETALHE DO PROJETO ──────────────────────────────
           <div>
             <button onClick={()=>setSel(null)} style={{background:"transparent",border:"none",color:C.muted,fontFamily:FONT,fontSize:13,cursor:"pointer",marginBottom:22,display:"flex",alignItems:"center",gap:6}}>← Voltar</button>
-            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:12}}>
-              <div><div style={{fontFamily:FONT_D,fontSize:26,fontWeight:800}}>{sel.name}</div><div style={{color:C.muted,fontSize:13,marginTop:4}}>{sel.client}{sel.deadline&&` · Entrega: ${new Date(sel.deadline).toLocaleDateString("pt-BR")}`}</div></div>
-              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                <Badge status={sel.status}/>
-                {pendings.filter(x=>x.status==="open").length>0&&<span style={{background:C.warn+"20",color:C.warn,border:`1px solid ${C.warn}40`,borderRadius:4,padding:"2px 10px",fontSize:11,fontFamily:FONT}}>⚠ {pendings.filter(x=>x.status==="open").length}</span>}
-                <Ring value={sel.progress||0} size={52}/>
-                {(sel.phase||0)<PHASES.length-1&&<button onClick={advancePhase} style={{...btnP,fontSize:11,padding:"8px 14px"}}>Avançar Fase →</button>}
+
+            {/* HEADER DO PROJETO */}
+            {editProj?(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20,marginBottom:20}}>
+                <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800,marginBottom:16}}>✏️ Editar Projeto</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                  {[["NOME","name"],["CLIENTE","client"],["GESTOR","manager"]].map(([l,k])=>(
+                    <div key={k}><Label t={l}/><input style={inp} value={projForm[k]||""} onChange={e=>setProjForm(f=>({...f,[k]:e.target.value}))}/></div>
+                  ))}
+                  <div><Label t="STATUS"/><select style={inp} value={projForm.status||"on-track"} onChange={e=>setProjForm(f=>({...f,status:e.target.value}))}>{Object.entries(STATUS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</select></div>
+                  <div><Label t="DATA DE ENTREGA"/><input type="date" style={inp} value={projForm.deadline||""} onChange={e=>setProjForm(f=>({...f,deadline:e.target.value}))}/></div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={saveProject} disabled={saving} style={{...btnP,fontSize:12,padding:"8px 16px"}}>{saving?"Salvando...":"✓ Salvar"}</button>
+                  <button onClick={()=>setEditProj(false)} style={{...btnG,fontSize:12,padding:"8px 16px"}}>Cancelar</button>
+                  <button onClick={deleteProject} style={{background:C.danger+"15",border:`1px solid ${C.danger}40`,borderRadius:8,color:C.danger,fontFamily:FONT,fontSize:12,padding:"8px 16px",cursor:"pointer",marginLeft:"auto"}}>🗑 Excluir Projeto</button>
+                </div>
               </div>
-            </div>
-            <div style={{marginBottom:22}}><div style={{color:C.muted,fontSize:11,marginBottom:8,letterSpacing:"0.08em"}}>FASE: {PHASES[sel.phase||0].toUpperCase()}</div><PhaseBar phase={sel.phase||0}/></div>
+            ):(
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8,flexWrap:"wrap",gap:12}}>
+                <div>
+                  <div style={{fontFamily:FONT_D,fontSize:26,fontWeight:800}}>{sel.name}</div>
+                  <div style={{color:C.muted,fontSize:13,marginTop:4}}>{sel.client}{sel.manager&&` · Gestor: ${sel.manager}`}{sel.deadline&&` · Entrega: ${new Date(sel.deadline).toLocaleDateString("pt-BR")}`}</div>
+                </div>
+                <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                  <span style={{background:STATUS[sel.status]?.bg,color:STATUS[sel.status]?.color,border:`1px solid ${STATUS[sel.status]?.color}30`,borderRadius:4,padding:"2px 10px",fontSize:11,fontFamily:FONT,fontWeight:600}}>{STATUS[sel.status]?.label}</span>
+                  {pendings.filter(x=>x.status==="open").length>0&&<span style={{background:C.warn+"20",color:C.warn,border:`1px solid ${C.warn}40`,borderRadius:4,padding:"2px 10px",fontSize:11,fontFamily:FONT}}>⚠ {pendings.filter(x=>x.status==="open").length}</span>}
+                  <Ring value={sel.progress||0} size={52}/>
+                  <button onClick={()=>setEditProj(true)} style={{background:C.subtle,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontFamily:FONT,fontSize:11,padding:"8px 14px",cursor:"pointer"}}>✏️ Editar</button>
+                  {(sel.phase||0)<PHASES.length-1&&<button onClick={advancePhase} style={{...btnP,fontSize:11,padding:"8px 14px"}}>Avançar Fase →</button>}
+                </div>
+              </div>
+            )}
 
-            <div style={{display:"flex",marginBottom:22,borderBottom:`1px solid ${C.border}`,overflowX:"auto"}}>
-              {[["tasks","Tarefas"],["pendings",`Pendências${pendings.filter(x=>x.status==="open").length>0?` (${pendings.filter(x=>x.status==="open").length})`:""}`],["messages","Comunicação"],["onboarding","Dados Cliente"],["products",`Produtos (${products.length})`]].map(([id,label])=>(
-                <button key={id} onClick={()=>setTab(id)} style={{background:"transparent",border:"none",borderBottom:tab===id?`2px solid ${id==="pendings"?C.warn:C.accent}`:"2px solid transparent",color:tab===id?(id==="pendings"?C.warn:C.accent):C.muted,fontFamily:FONT,fontSize:12,padding:"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap"}}>{label}</button>
-              ))}
-            </div>
+            {!editProj&&<>
+              <div style={{marginBottom:22}}><div style={{color:C.muted,fontSize:11,marginBottom:8,letterSpacing:"0.08em"}}>FASE: {PHASES[sel.phase||0].toUpperCase()}</div><div style={{display:"flex",gap:3}}>{PHASES.map((_,i)=><div key={i} onClick={async()=>{if(window.confirm(`Mover para fase "${PHASES[i]}"?`)){await api.patch("projects",{id:sel.id},{phase:i});setSel(prev=>({...prev,phase:i}));setProjects(prev=>prev.map(p=>p.id===sel.id?{...p,phase:i}:p));} }} style={{height:6,flex:1,borderRadius:2,background:i<(sel.phase||0)?C.accent:i===(sel.phase||0)?C.warn:C.border,cursor:"pointer",transition:"background .3s"}} title={PHASES[i]}/> )}</div></div>
 
-            {tab==="tasks"&&(<div><div style={{display:"flex",gap:10,marginBottom:16}}><input style={{...inp,flex:1}} placeholder="Nova tarefa..." value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTask()}/><select style={{...inp,width:120}} value={assignee} onChange={e=>setAssignee(e.target.value)}>{["Ana","Pedro","Lucas","Carla","Rafael","Juliana"].map(n=><option key={n}>{n}</option>)}</select><button onClick={addTask} disabled={saving} style={btnP}>+ Add</button></div>{tasks.map(t=>(<div key={t.id} onClick={()=>toggleTask(t)} className="ch" style={{background:C.card,border:`1px solid ${t.done?C.accent+"30":C.border}`,borderRadius:10,padding:"13px 18px",display:"flex",alignItems:"center",gap:14,marginBottom:8,opacity:t.done?0.65:1}}><div style={{width:18,height:18,borderRadius:4,border:`2px solid ${t.done?C.accent:C.border}`,background:t.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{t.done&&<span style={{color:"#000",fontSize:11}}>✓</span>}</div><span style={{flex:1,textDecoration:t.done?"line-through":"none",color:t.done?C.muted:C.text,fontSize:14}}>{t.title}</span><span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"2px 10px",fontSize:11}}>{t.assignee}</span></div>))}</div>)}
+              {/* TABS */}
+              <div style={{display:"flex",marginBottom:22,borderBottom:`1px solid ${C.border}`,overflowX:"auto"}}>
+                {[["tasks","Tarefas"],["pendings",`Pendências${pendings.filter(x=>x.status==="open").length>0?` (${pendings.filter(x=>x.status==="open").length})`:""}`],["messages","Comunicação"],["onboarding","Dados do Cliente"],["products",`Produtos (${products.length})`]].map(([id,label])=>(
+                  <button key={id} onClick={()=>setTab(id)} style={{background:"transparent",border:"none",borderBottom:tab===id?`2px solid ${id==="pendings"?C.warn:C.accent}`:"2px solid transparent",color:tab===id?(id==="pendings"?C.warn:C.accent):C.muted,fontFamily:FONT,fontSize:12,padding:"10px 14px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap"}}>{label}</button>
+                ))}
+              </div>
 
-            {tab==="pendings"&&(<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><span style={{color:pendings.filter(x=>x.status==="open").length>0?C.danger:C.accent,fontFamily:FONT,fontSize:13,fontWeight:600}}>{pendings.filter(x=>x.status==="open").length} pendência(s)</span><button onClick={()=>{setPendStep(1);setShowPend(true);}} style={{...btnP,fontSize:12,padding:"8px 16px"}}>+ Registrar</button></div>{pendings.filter(x=>x.status==="open").map(p=>{const pt=PTYPES.find(t=>t.id===p.type);const urg=URGENCY.find(u=>u.id===p.urgency);return(<div key={p.id} style={{background:urg?.color+"08",border:`1px solid ${urg?.color}35`,borderRadius:12,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><span style={{fontSize:20}}>{pt?.icon}</span><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:13}}>{pt?.label}</div>{p.note&&<div style={{color:C.muted,fontSize:12}}>{p.note}</div>}</div><button onClick={()=>resolvePending(p.id)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:6,color:C.accent,fontFamily:FONT,fontSize:11,padding:"5px 10px",cursor:"pointer"}}>✓ Resolver</button></div>);})}</div>)}
+              {/* TAREFAS */}
+              {tab==="tasks"&&(
+                <div>
+                  <div style={{display:"flex",gap:10,marginBottom:16}}>
+                    <input style={{...inp,flex:1}} placeholder="Nova tarefa..." value={newTask} onChange={e=>setNewTask(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTask()}/>
+                    <select style={{...inp,width:120}} value={assignee} onChange={e=>setAssignee(e.target.value)}>{["Ana","Pedro","Lucas","Carla","Rafael","Juliana"].map(n=><option key={n}>{n}</option>)}</select>
+                    <button onClick={addTask} disabled={saving} style={btnP}>+ Add</button>
+                  </div>
+                  {tasks.length===0?<div style={{color:C.muted,textAlign:"center",padding:40}}>Nenhuma tarefa ainda.</div>:tasks.map(t=>(
+                    <div key={t.id} style={{background:C.card,border:`1px solid ${t.done?C.accent+"30":C.border}`,borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,marginBottom:8,opacity:t.done?0.65:1}}>
+                      <div onClick={()=>toggleTask(t)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${t.done?C.accent:C.border}`,background:t.done?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>{t.done&&<span style={{color:"#000",fontSize:11}}>✓</span>}</div>
+                      <span style={{flex:1,textDecoration:t.done?"line-through":"none",color:t.done?C.muted:C.text,fontSize:13}}>{t.title}</span>
+                      <span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"2px 8px",fontSize:11}}>{t.assignee}</span>
+                      <button onClick={()=>deleteTask(t.id)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:14,padding:"2px 6px"}}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            {tab==="messages"&&(<div><div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20,marginBottom:14,maxHeight:360,overflowY:"auto",display:"flex",flexDirection:"column",gap:12}}>{messages.length===0?<div style={{color:C.muted,textAlign:"center",padding:40,fontSize:13}}>Nenhuma mensagem.</div>:messages.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.from_role==="team"?"flex-end":"flex-start"}}><div style={{background:m.from_role==="team"?C.accentDim:C.subtle,border:`1px solid ${m.from_role==="team"?C.accentBorder:C.border}`,borderRadius:10,padding:"10px 14px",maxWidth:"72%"}}><div style={{fontSize:10,color:C.muted,marginBottom:4}}>{m.from_role==="team"?"📤 Equipe":"📥 Cliente"} · {new Date(m.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div><div style={{fontSize:13}}>{m.text}</div></div></div>))}</div><div style={{display:"flex",gap:10}}><input style={{...inp,flex:1}} placeholder="Mensagem..." value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()}/><button onClick={sendMessage} style={btnP}>Enviar</button></div></div>)}
+              {/* PENDÊNCIAS */}
+              {tab==="pendings"&&(
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                    <span style={{color:pendings.filter(x=>x.status==="open").length>0?C.danger:C.accent,fontFamily:FONT,fontSize:13,fontWeight:600}}>{pendings.filter(x=>x.status==="open").length} pendência(s)</span>
+                    <button onClick={()=>{setPendStep(1);setShowPend(true);}} style={{...btnP,fontSize:12,padding:"8px 16px"}}>+ Registrar</button>
+                  </div>
+                  {pendings.filter(x=>x.status==="open").map(p=>{const pt=PTYPES.find(t=>t.id===p.type);const urg=URGENCY.find(u=>u.id===p.urgency);return(<div key={p.id} style={{background:urg?.color+"08",border:`1px solid ${urg?.color}35`,borderRadius:12,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><span style={{fontSize:20}}>{pt?.icon}</span><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:13}}>{pt?.label}</div>{p.note&&<div style={{color:C.muted,fontSize:12}}>{p.note}</div>}<div style={{color:C.muted,fontSize:11,marginTop:4}}>⏳ {p.days_blocking}d bloqueando · {new Date(p.sent_at).toLocaleDateString("pt-BR")}</div></div><button onClick={()=>resolvePending(p.id)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:6,color:C.accent,fontFamily:FONT,fontSize:11,padding:"5px 10px",cursor:"pointer"}}>✓ Resolver</button></div>);})}
+                  {pendings.filter(x=>x.status==="resolved").length>0&&<div style={{marginTop:16}}><div style={{color:C.muted,fontSize:11,letterSpacing:"0.1em",marginBottom:10}}>RESOLVIDAS</div>{pendings.filter(x=>x.status==="resolved").map(p=>{const pt=PTYPES.find(t=>t.id===p.type);return(<div key={p.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:0.5}}><span>{pt?.icon}</span><span style={{flex:1,textDecoration:"line-through",color:C.muted,fontSize:12}}>{pt?.label}</span><span style={{color:C.accent,fontSize:11}}>✓</span></div>);})}</div>}
+                </div>
+              )}
 
-            {tab==="onboarding"&&(<div>{!onboarding?<div style={{textAlign:"center",padding:48,color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>⏳</div><div>Cliente ainda não preencheu o formulário</div></div>:<div style={{display:"grid",gap:8}}>{[["Empresa",onboarding.company_name],["CNPJ",onboarding.cnpj],["E-mail",onboarding.email],["Telefone",onboarding.phone],["Endereço",onboarding.address],["Plataforma",onboarding.platform],["ERP",onboarding.erp],["Gateway Envio",onboarding.gateway_envio],["Gateway Pagamento",onboarding.gateway_pagamento],["Cores",onboarding.cores],["Categorias",onboarding.categorias],["Redes Sociais",onboarding.redes_sociais]].map(([l,v])=>v&&(<div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",display:"flex",gap:12}}><span style={{color:C.muted,fontSize:12,minWidth:160}}>{l}</span><span style={{color:C.text,fontSize:12,fontWeight:600}}>{v}</span></div>))}</div>}</div>)}
+              {/* MENSAGENS */}
+              {tab==="messages"&&(
+                <div>
+                  <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20,marginBottom:14,maxHeight:360,overflowY:"auto",display:"flex",flexDirection:"column",gap:12}}>
+                    {messages.length===0?<div style={{color:C.muted,textAlign:"center",padding:40}}>Nenhuma mensagem.</div>:messages.map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:m.from_role==="team"?"flex-end":"flex-start"}}><div style={{background:m.from_role==="team"?C.accentDim:C.subtle,border:`1px solid ${m.from_role==="team"?C.accentBorder:C.border}`,borderRadius:10,padding:"10px 14px",maxWidth:"72%"}}><div style={{fontSize:10,color:C.muted,marginBottom:4}}>{m.from_role==="team"?"📤 Equipe":"📥 Cliente"} · {new Date(m.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div><div style={{fontSize:13}}>{m.text}</div></div></div>))}
+                  </div>
+                  <div style={{display:"flex",gap:10}}><input style={{...inp,flex:1}} placeholder="Mensagem..." value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()}/><button onClick={sendMessage} style={btnP}>Enviar</button></div>
+                </div>
+              )}
 
-            {tab==="products"&&(<div>{products.length===0?<div style={{textAlign:"center",padding:48,color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>📦</div><div>Nenhum produto cadastrado ainda</div></div>:<div>{products.map(p=>(<div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:10,display:"flex",gap:12,alignItems:"flex-start"}}>{p.images&&p.images.length>0?<img src={p.images[0]} style={{width:56,height:56,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:56,height:56,background:C.subtle,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>}<div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:13}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.category}</div><div style={{display:"flex",gap:10,marginTop:6}}><span style={{color:C.accent,fontSize:12}}>R$ {parseFloat(p.price||0).toFixed(2)}</span><span style={{color:C.muted,fontSize:12}}>Estoque: {p.stock}</span></div></div></div>))}</div>}</div>)}
+              {/* DADOS DO CLIENTE / ONBOARDING */}
+              {tab==="onboarding"&&(
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                    <div style={{fontFamily:FONT_D,fontSize:16,fontWeight:800}}>Dados do Cliente</div>
+                    <button onClick={()=>setEditOnboarding(!editOnboarding)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:8,color:C.accent,fontFamily:FONT,fontSize:12,padding:"7px 14px",cursor:"pointer"}}>{editOnboarding?"Cancelar":"✏️ Editar"}</button>
+                  </div>
+                  {editOnboarding?(
+                    <div>
+                      {[["EMPRESA","company_name"],["CNPJ","cnpj"],["E-MAIL","email"],["TELEFONE","phone"],["ENDEREÇO","address"],["PLATAFORMA","platform"],["LOGIN PLATAFORMA","platform_login"],["ERP","erp"],["LOGIN ERP","erp_login"],["GATEWAY ENVIO","gateway_envio"],["GATEWAY PAGAMENTO","gateway_pagamento"],["CORES","cores"],["CATEGORIAS","categorias"],["REDES SOCIAIS","redes_sociais"],["REFERÊNCIAS","referencias_sites"]].map(([l,k])=>(
+                        <div key={k} style={{marginBottom:10}}>
+                          <Label t={l}/>
+                          <input style={inp} value={obForm[k]||""} onChange={e=>setObForm(f=>({...f,[k]:e.target.value}))}/>
+                        </div>
+                      ))}
+                      <div style={{marginBottom:10}}><Label t="QUEM SOMOS"/><textarea style={{...inp,minHeight:80,resize:"vertical"}} value={obForm.quem_somos||""} onChange={e=>setObForm(f=>({...f,quem_somos:e.target.value}))}/></div>
+                      <div style={{marginBottom:16}}><Label t="ATENDIMENTO"/><textarea style={{...inp,minHeight:60,resize:"vertical"}} value={obForm.atendimento_info||""} onChange={e=>setObForm(f=>({...f,atendimento_info:e.target.value}))}/></div>
+                      <button onClick={saveOnboarding} disabled={saving} style={{...btnP,fontSize:12}}>{saving?"Salvando...":"✓ Salvar Dados"}</button>
+                    </div>
+                  ):(
+                    !onboarding?<div style={{textAlign:"center",padding:48,color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>⏳</div><div>Cliente ainda não preencheu o formulário</div><button onClick={()=>setEditOnboarding(true)} style={{...btnP,marginTop:16,fontSize:12}}>Preencher manualmente</button></div>
+                    :<div style={{display:"grid",gap:8}}>{[["Empresa",onboarding.company_name],["CNPJ",onboarding.cnpj],["E-mail",onboarding.email],["Telefone",onboarding.phone],["Endereço",onboarding.address],["Plataforma",onboarding.platform],["ERP",onboarding.erp],["Gateway Envio",onboarding.gateway_envio],["Gateway Pagamento",onboarding.gateway_pagamento],["Cores",onboarding.cores],["Categorias",onboarding.categorias],["Redes Sociais",onboarding.redes_sociais],["Quem Somos",onboarding.quem_somos],["Atendimento",onboarding.atendimento_info]].map(([l,v])=>v&&(<div key={l} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",display:"flex",gap:12,flexWrap:"wrap"}}><span style={{color:C.muted,fontSize:12,minWidth:160,flexShrink:0}}>{l}</span><span style={{color:C.text,fontSize:12,fontWeight:600,wordBreak:"break-all"}}>{v}</span></div>))}</div>
+                  )}
+                </div>
+              )}
+
+              {/* PRODUTOS */}
+              {tab==="products"&&(
+                <div>
+                  {products.length===0?<div style={{textAlign:"center",padding:48,color:C.muted}}><div style={{fontSize:36,marginBottom:12}}>📦</div><div>Nenhum produto cadastrado</div></div>
+                  :<div>{products.map(p=>(<div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:10,display:"flex",gap:12,alignItems:"flex-start"}}>{p.images&&p.images.length>0?<img src={p.images[0]} style={{width:56,height:56,objectFit:"cover",borderRadius:8,flexShrink:0}}/>:<div style={{width:56,height:56,background:C.subtle,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📦</div>}<div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:13}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.category}</div><div style={{display:"flex",gap:10,marginTop:6,flexWrap:"wrap"}}><span style={{color:C.accent,fontSize:12}}>R$ {parseFloat(p.price||0).toFixed(2)}</span><span style={{color:C.muted,fontSize:12}}>Estoque: {p.stock}</span>{p.code&&<span style={{color:C.muted,fontSize:12}}>Cód: {p.code}</span>}{p.ean&&<span style={{color:C.muted,fontSize:12}}>EAN: {p.ean}</span>}{p.weight&&<span style={{color:C.muted,fontSize:12}}>{p.weight}kg</span>}</div></div>{p.images&&p.images.length>1&&<span style={{color:C.muted,fontSize:11}}>📷 {p.images.length}</span>}</div>))}</div>}
+                </div>
+              )}
+            </>}
           </div>
         ):loading?<Spinner/>:(
           <>
-            {view==="dashboard"&&(<div><div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:4}}>Dashboard</div><div style={{color:C.muted,fontSize:13,marginBottom:26}}>Olá, {user?.email?.split("@")[0]} 👋</div><div style={{display:"flex",gap:12,marginBottom:28,flexWrap:"wrap"}}><StatCard label="Total" value={stats.total} icon="⬡"/><StatCard label="No Prazo" value={stats.onTrack} color={C.accent} icon="◎"/><StatCard label="Em Risco" value={stats.atRisk} color={C.warn} icon="◉"/><StatCard label="Atrasados" value={stats.delayed} color={C.danger} icon="◈"/><StatCard label="Pendências" value={totalPend} color={totalPend>0?C.warn:C.accent} icon="⚠"/></div>{projects.length===0?<div style={{textAlign:"center",padding:60,color:C.muted}}><div style={{fontSize:40,marginBottom:12}}>⬡</div><div style={{fontFamily:FONT_D,fontSize:18,color:C.accent}}>Nenhum projeto ainda</div></div>:<div style={{display:"flex",flexDirection:"column",gap:10}}>{projects.map(p=>{const op=(p.pendings||[]).filter(x=>x.status==="open").length;return(<div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:C.card,border:`1px solid ${op>0?C.warn+"40":C.border}`,borderRadius:12,padding:"16px 22px",display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}><Ring value={p.progress||0} size={46}/><div style={{flex:1,minWidth:150}}><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:15}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.client}</div><div style={{marginTop:8}}><PhaseBar phase={p.phase||0}/></div></div><div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}><div style={{display:"flex",gap:6}}><Badge status={p.status}/>{op>0&&<span style={{background:C.warn+"20",color:C.warn,border:`1px solid ${C.warn}40`,borderRadius:4,padding:"2px 8px",fontSize:11}}>⚠ {op}</span>}</div><div style={{color:p.daysLeft<0?C.danger:p.daysLeft<7?C.warn:C.muted,fontSize:12}}>{p.daysLeft===null?"Sem prazo":p.daysLeft<0?`${Math.abs(p.daysLeft)}d atraso`:p.daysLeft===0?"Hoje":`${p.daysLeft}d`}</div></div></div>);})}</div>}</div>)}
-            {view==="projects"&&(<div><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:26,flexWrap:"wrap",gap:12}}><div><div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800}}>Projetos</div><div style={{color:C.muted,fontSize:13}}>{filtered.length} projeto(s)</div></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{[["all","Todos"],["on-track","No prazo"],["at-risk","Em risco"],["delayed","Atrasados"],["done","Concluídos"]].map(([val,label])=>(<button key={val} onClick={()=>setFilterSt(val)} style={{background:filterSt===val?C.accentDim:"transparent",border:`1px solid ${filterSt===val?C.accentBorder:C.border}`,borderRadius:6,color:filterSt===val?C.accent:C.muted,fontFamily:FONT,fontSize:12,padding:"6px 14px",cursor:"pointer"}}>{label}</button>))}</div></div><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14}}>{filtered.map(p=>{const op=(p.pendings||[]).filter(x=>x.status==="open").length;return(<div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:C.card,border:`1px solid ${op>0?C.warn+"40":C.border}`,borderRadius:14,padding:20}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}><div><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:15}}>{p.name}</div><div style={{color:C.muted,fontSize:12,marginTop:3}}>{p.client}</div></div><Ring value={p.progress||0} size={48}/></div><PhaseBar phase={p.phase||0}/><div style={{marginTop:10,fontSize:11,color:C.muted}}>{PHASES[p.phase||0]}</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12}}><Badge status={p.status}/>{op>0&&<span style={{color:C.warn,fontSize:12}}>⚠ {op}</span>}</div></div>);})}</div></div>)}
-            {view==="pendings"&&(<div><div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:28}}>Central de Pendências</div>{projects.flatMap(p=>(p.pendings||[]).filter(x=>x.status==="open").map(x=>({...x,project:p}))).length===0?<div style={{textAlign:"center",padding:80}}><div style={{fontSize:48,marginBottom:16}}>🎉</div><div style={{fontFamily:FONT_D,fontSize:22,color:C.accent}}>Nenhuma pendência!</div></div>:["high","medium","low"].map(u=>{const items=projects.flatMap(p=>(p.pendings||[]).filter(x=>x.status==="open"&&x.urgency===u).map(x=>({...x,project:p})));if(!items.length) return null;const urg=URGENCY.find(x=>x.id===u);return(<div key={u} style={{marginBottom:28}}><div style={{color:urg.color,fontFamily:FONT_D,fontWeight:700,fontSize:15,marginBottom:12}}>{u==="high"?"🔴":u==="medium"?"🟡":"🟢"} {urg.label.toUpperCase()} — {items.length}</div>{items.map(item=>{const pt=PTYPES.find(t=>t.id===item.type);return(<div key={item.id} className="ch" onClick={()=>openProject(item.project)} style={{background:urg.color+"08",border:`1px solid ${urg.color}30`,borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}><span style={{fontSize:22}}>{pt?.icon}</span><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700}}>{item.project.name}</div><div style={{color:C.muted,fontSize:12}}>{item.project.client} · {pt?.label}</div></div><span style={{color:C.danger,fontSize:12}}>⏳ {item.days_blocking}d</span></div>);})}</div>);})}</div>)}
-            {view==="alerts"&&(<div><div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:28}}>Central de Alertas</div>{projects.filter(p=>p.status==="delayed").length>0&&(<div style={{marginBottom:24}}><div style={{color:C.danger,fontFamily:FONT_D,fontWeight:700,fontSize:15,marginBottom:12}}>🔴 ATRASADOS</div>{projects.filter(p=>p.status==="delayed").map(p=>(<div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:"#EF444408",border:"1px solid #EF444430",borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.client}</div></div><div style={{color:C.danger,fontSize:12,fontWeight:600}}>{Math.abs(p.daysLeft||0)}d atraso</div></div>))}</div>)}{projects.filter(p=>p.status==="at-risk").length>0&&(<div><div style={{color:C.warn,fontFamily:FONT_D,fontWeight:700,fontSize:15,marginBottom:12}}>🟡 EM RISCO</div>{projects.filter(p=>p.status==="at-risk").map(p=>(<div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:"#F59E0B08",border:"1px solid #F59E0B30",borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.client}</div></div><div style={{color:C.warn,fontSize:12,fontWeight:600}}>{p.daysLeft}d restantes</div><Ring value={p.progress||0} size={44}/></div>))}</div>)}{stats.delayed===0&&stats.atRisk===0&&<div style={{textAlign:"center",padding:80}}><div style={{fontSize:48,marginBottom:16}}>✦</div><div style={{fontFamily:FONT_D,fontSize:20,color:C.accent}}>Tudo sob controle!</div></div>}</div>)}
+            {/* ── DASHBOARD ── */}
+            {view==="dashboard"&&(
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:4}}>Dashboard</div>
+                    <div style={{color:C.muted,fontSize:13}}>Olá, {user?.email?.split("@")[0]} 👋 — visão geral em tempo real</div>
+                  </div>
+                  <button onClick={loadProjects} style={{...btnG,fontSize:12,padding:"8px 14px"}}>↻ Atualizar</button>
+                </div>
+
+                {/* STAT CARDS */}
+                <div style={{display:"flex",gap:12,marginBottom:24,flexWrap:"wrap"}}>
+                  <StatCard label="Total" value={stats.total} icon="⬡"/>
+                  <StatCard label="No Prazo" value={stats.onTrack} color={C.accent} icon="◎"/>
+                  <StatCard label="Em Risco" value={stats.atRisk} color={C.warn} icon="◉"/>
+                  <StatCard label="Atrasados" value={stats.delayed} color={C.danger} icon="◈"/>
+                  <StatCard label="Concluídos" value={stats.done} color={C.purple} icon="★"/>
+                  <StatCard label="Pendências" value={totalPend} color={totalPend>0?C.warn:C.accent} icon="⚠" sub="em aberto"/>
+                </div>
+
+                {/* CHARTS ROW */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:28}}>
+                  <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
+                    <div style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",marginBottom:16}}>STATUS DOS PROJETOS</div>
+                    <BarChart
+                      data={[{label:"No prazo",value:stats.onTrack},{label:"Em risco",value:stats.atRisk},{label:"Atrasado",value:stats.delayed},{label:"Concluído",value:stats.done}]}
+                      colors={[C.accent,C.warn,C.danger,C.purple]}
+                    />
+                  </div>
+                  <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20,display:"flex",justifyContent:"center"}}>
+                    <div>
+                      <div style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",marginBottom:16,textAlign:"center"}}>PROGRESSO MÉDIO</div>
+                      <DonutChart value={stats.avgProgress} total={100} color={C.accent} label="média geral"/>
+                    </div>
+                  </div>
+                  <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:20}}>
+                    <div style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",marginBottom:16}}>PROJETOS POR FASE</div>
+                    <BarChart
+                      data={PHASES.map((ph,i)=>({label:ph.substring(0,6),value:projects.filter(p=>(p.phase||0)===i).length}))}
+                      colors={[C.muted,C.blue,C.accent,C.warn,C.purple,C.danger]}
+                    />
+                  </div>
+                </div>
+
+                {/* ALERTAS RÁPIDOS */}
+                {(stats.delayed>0||stats.atRisk>0||totalPend>0)&&(
+                  <div style={{background:"#EF444408",border:"1px solid #EF444430",borderRadius:12,padding:"16px 20px",marginBottom:24}}>
+                    <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:14,color:C.danger,marginBottom:10}}>⚠ Atenção necessária</div>
+                    <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                      {stats.delayed>0&&<span style={{color:C.danger,fontSize:13}}>🔴 {stats.delayed} projeto(s) atrasado(s)</span>}
+                      {stats.atRisk>0&&<span style={{color:C.warn,fontSize:13}}>🟡 {stats.atRisk} projeto(s) em risco</span>}
+                      {totalPend>0&&<span style={{color:C.warn,fontSize:13}}>⚠ {totalPend} pendência(s) do cliente</span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* LISTA PROJETOS */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                  <div style={{fontFamily:FONT_D,fontSize:18,fontWeight:800}}>Todos os Projetos</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setView("kanban")} style={{...btnG,fontSize:12,padding:"7px 14px"}}>⊞ Kanban</button>
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {projects.map(p=>{
+                    const op=(p.pendings||[]).filter(x=>x.status==="open").length;
+                    return(
+                      <div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:C.card,border:`1px solid ${op>0?C.warn+"40":C.border}`,borderRadius:12,padding:"16px 22px",display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}>
+                        <Ring value={p.progress||0} size={46}/>
+                        <div style={{flex:1,minWidth:150}}>
+                          <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:15}}>{p.name}</div>
+                          <div style={{color:C.muted,fontSize:12}}>{p.client}{p.manager&&` · ${p.manager}`}</div>
+                          <div style={{marginTop:8}}><div style={{display:"flex",gap:3}}>{PHASES.map((_,i)=><div key={i} style={{height:4,flex:1,borderRadius:2,background:i<(p.phase||0)?C.accent:i===(p.phase||0)?C.warn:C.border}}/>)}</div></div>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6,alignItems:"flex-end"}}>
+                          <div style={{display:"flex",gap:6}}><span style={{background:STATUS[p.status]?.bg,color:STATUS[p.status]?.color,border:`1px solid ${STATUS[p.status]?.color}30`,borderRadius:4,padding:"2px 10px",fontSize:11,fontFamily:FONT,fontWeight:600}}>{STATUS[p.status]?.label}</span>{op>0&&<span style={{background:C.warn+"20",color:C.warn,border:`1px solid ${C.warn}40`,borderRadius:4,padding:"2px 8px",fontSize:11}}>⚠ {op}</span>}</div>
+                          <div style={{color:p.daysLeft<0?C.danger:p.daysLeft<7?C.warn:C.muted,fontSize:12}}>{p.daysLeft===null?"Sem prazo":p.daysLeft<0?`${Math.abs(p.daysLeft)}d atraso`:p.daysLeft===0?"Hoje":`${p.daysLeft}d`}</div>
+                          <div style={{color:C.muted,fontSize:11}}>{PHASES[p.phase||0]} · {(p.tasks||[]).filter(t=>t.done).length}/{(p.tasks||[]).length} tarefas</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── KANBAN ── */}
+            {view==="kanban"&&(
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24,flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:4}}>Kanban</div>
+                    <div style={{color:C.muted,fontSize:13}}>{projects.length} projetos · arraste para mover de fase</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[["all","Todos"],["on-track","No prazo"],["at-risk","Em risco"],["delayed","Atrasados"]].map(([val,label])=>(
+                      <button key={val} onClick={()=>setFilterSt(val)} style={{background:filterSt===val?C.accentDim:"transparent",border:`1px solid ${filterSt===val?C.accentBorder:C.border}`,borderRadius:6,color:filterSt===val?C.accent:C.muted,fontFamily:FONT,fontSize:12,padding:"6px 14px",cursor:"pointer"}}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <KanbanView projects={filtered} onOpenProject={openProject} onMovePhase={movePhase}/>
+              </div>
+            )}
+
+            {/* ── PROJETOS ── */}
+            {view==="projects"&&(
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:26,flexWrap:"wrap",gap:12}}>
+                  <div><div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800}}>Projetos</div><div style={{color:C.muted,fontSize:13}}>{filtered.length} projeto(s)</div></div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {[["all","Todos"],["on-track","No prazo"],["at-risk","Em risco"],["delayed","Atrasados"],["done","Concluídos"]].map(([val,label])=>(
+                      <button key={val} onClick={()=>setFilterSt(val)} style={{background:filterSt===val?C.accentDim:"transparent",border:`1px solid ${filterSt===val?C.accentBorder:C.border}`,borderRadius:6,color:filterSt===val?C.accent:C.muted,fontFamily:FONT,fontSize:12,padding:"6px 14px",cursor:"pointer"}}>{label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14}}>
+                  {filtered.map(p=>{
+                    const op=(p.pendings||[]).filter(x=>x.status==="open").length;
+                    return(
+                      <div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:C.card,border:`1px solid ${op>0?C.warn+"40":C.border}`,borderRadius:14,padding:20}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                          <div><div style={{fontFamily:FONT_D,fontWeight:700,fontSize:15}}>{p.name}</div><div style={{color:C.muted,fontSize:12,marginTop:3}}>{p.client}</div></div>
+                          <Ring value={p.progress||0} size={48}/>
+                        </div>
+                        <div style={{display:"flex",gap:3,marginBottom:8}}>{PHASES.map((_,i)=><div key={i} style={{height:4,flex:1,borderRadius:2,background:i<(p.phase||0)?C.accent:i===(p.phase||0)?C.warn:C.border}}/>)}</div>
+                        <div style={{fontSize:11,color:C.muted,marginBottom:10}}>{PHASES[p.phase||0]}</div>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <span style={{background:STATUS[p.status]?.bg,color:STATUS[p.status]?.color,border:`1px solid ${STATUS[p.status]?.color}30`,borderRadius:4,padding:"2px 10px",fontSize:11,fontFamily:FONT,fontWeight:600}}>{STATUS[p.status]?.label}</span>
+                          {op>0&&<span style={{color:C.warn,fontSize:12}}>⚠ {op}</span>}
+                        </div>
+                        <div style={{marginTop:10,display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted}}>
+                          <span>{p.manager||"—"}</span>
+                          <span>{p.daysLeft===null?"—":p.daysLeft<0?`${Math.abs(p.daysLeft)}d atraso`:`${p.daysLeft}d`}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── PENDÊNCIAS ── */}
+            {view==="pendings"&&(
+              <div>
+                <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:4}}>Central de Pendências</div>
+                <div style={{color:C.muted,fontSize:13,marginBottom:28}}>{allOpenPendings.length} pendência(s) bloqueando projetos</div>
+                {allOpenPendings.length===0?<div style={{textAlign:"center",padding:80}}><div style={{fontSize:48,marginBottom:16}}>🎉</div><div style={{fontFamily:FONT_D,fontSize:22,color:C.accent}}>Nenhuma pendência!</div></div>
+                :["high","medium","low"].map(u=>{
+                  const items=allOpenPendings.filter(x=>x.urgency===u);
+                  if(!items.length) return null;
+                  const urg=URGENCY.find(x=>x.id===u);
+                  return(<div key={u} style={{marginBottom:28}}><div style={{color:urg.color,fontFamily:FONT_D,fontWeight:700,fontSize:15,marginBottom:12}}>{u==="high"?"🔴":u==="medium"?"🟡":"🟢"} {urg.label.toUpperCase()} — {items.length}</div>{items.map(item=>{const pt=PTYPES.find(t=>t.id===item.type);return(<div key={item.id} className="ch" onClick={()=>openProject(item.project)} style={{background:urg.color+"08",border:`1px solid ${urg.color}30`,borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}><span style={{fontSize:22}}>{pt?.icon}</span><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700}}>{item.project.name}</div><div style={{color:C.muted,fontSize:12}}>{item.project.client} · {pt?.label}</div>{item.note&&<div style={{color:C.muted,fontSize:11,marginTop:2}}>{item.note}</div>}</div><span style={{color:C.danger,fontSize:12}}>⏳ {item.days_blocking}d</span></div>);})}</div>);
+                })}
+              </div>
+            )}
+
+            {/* ── ALERTAS ── */}
+            {view==="alerts"&&(
+              <div>
+                <div style={{fontFamily:FONT_D,fontSize:30,fontWeight:800,marginBottom:28}}>Central de Alertas</div>
+                {projects.filter(p=>p.status==="delayed").length>0&&(<div style={{marginBottom:24}}><div style={{color:C.danger,fontFamily:FONT_D,fontWeight:700,fontSize:15,marginBottom:12}}>🔴 ATRASADOS</div>{projects.filter(p=>p.status==="delayed").map(p=>(<div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:"#EF444408",border:"1px solid #EF444430",borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.client} · {(p.pendings||[]).filter(x=>x.status==="open").length} pendência(s)</div></div><div style={{color:C.danger,fontSize:12,fontWeight:600}}>{Math.abs(p.daysLeft||0)}d atraso</div></div>))}</div>)}
+                {projects.filter(p=>p.status==="at-risk").length>0&&(<div style={{marginBottom:24}}><div style={{color:C.warn,fontFamily:FONT_D,fontWeight:700,fontSize:15,marginBottom:12}}>🟡 EM RISCO</div>{projects.filter(p=>p.status==="at-risk").map(p=>(<div key={p.id} className="ch" onClick={()=>openProject(p)} style={{background:"#F59E0B08",border:"1px solid #F59E0B30",borderRadius:12,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}><div style={{flex:1}}><div style={{fontFamily:FONT_D,fontWeight:700}}>{p.name}</div><div style={{color:C.muted,fontSize:12}}>{p.client}</div></div><div style={{color:C.warn,fontSize:12,fontWeight:600}}>{p.daysLeft}d restantes</div><Ring value={p.progress||0} size={44}/></div>))}</div>)}
+                {stats.delayed===0&&stats.atRisk===0&&<div style={{textAlign:"center",padding:80}}><div style={{fontSize:48,marginBottom:16}}>✦</div><div style={{fontFamily:FONT_D,fontSize:20,color:C.accent}}>Tudo sob controle!</div></div>}
+              </div>
+            )}
+
+            {/* ── USUÁRIOS ── */}
+            {view==="users"&&<UsersView/>}
           </>
         )}
       </div>
