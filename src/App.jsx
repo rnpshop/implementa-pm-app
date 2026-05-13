@@ -133,23 +133,22 @@ const LoginScreen=({onLogin})=>{
 
 // ── DASHBOARD CLIENTE ────────────────────────────────────────
 const ClientDashboard=({user,token,onLogout})=>{
-  const [section,setSection]=useState("project");
+  const [section,setSection]=useState("onboarding");
   const [step,setStep]=useState(0);
   const [saving,setSaving]=useState(false);
-  const [projects,setProjects]=useState([]);
-  const [selectedProject,setSelectedProject]=useState("");
+  const [projectId,setProjectId]=useState(null);
   const [projectData,setProjectData]=useState(null);
   const [onboarding,setOnboarding]=useState(null);
   const [obSaved,setObSaved]=useState(false);
+  const [projectCreated,setProjectCreated]=useState(false);
   const [products,setProducts]=useState([]);
   const [showProdForm,setShowProdForm]=useState(false);
-  const [loadingProds,setLoadingProds]=useState(false);
-  const [loadingProject,setLoadingProject]=useState(false);
+  const [loadingInit,setLoadingInit]=useState(true);
   const [pendings,setPendings]=useState([]);
   const [messages,setMessages]=useState([]);
   const [newMsg,setNewMsg]=useState("");
   const [form,setForm]=useState({
-    company_name:"",cnpj:"",email:"",phone:"",address:"",
+    company_name:"",cnpj:"",email:user?.email||"",phone:"",address:"",
     platform:"",platform_login:"",platform_password:"",
     registrobr_login:"",registrobr_password:"",
     erp:"",erp_login:"",erp_password:"",
@@ -161,29 +160,57 @@ const ClientDashboard=({user,token,onLogout})=>{
   const [images,setImages]=useState([]);
   const [editProd,setEditProd]=useState(null);
 
-  useEffect(()=>{ api.get("projects","order=created_at.desc").then(d=>setProjects(d||[])); },[]);
-
+  // Carrega projeto vinculado ao cliente
   useEffect(()=>{
-    if(!selectedProject) return;
-    setLoadingProject(true);
-    Promise.all([
-      api.get("onboarding",`project_id=eq.${selectedProject}`),
-      api.get("products",`project_id=eq.${selectedProject}&order=created_at.desc`),
-      api.get("pendings",`project_id=eq.${selectedProject}&order=sent_at.desc`),
-      api.get("messages",`project_id=eq.${selectedProject}&order=created_at.asc`),
-      api.get("projects",`id=eq.${selectedProject}`),
-    ]).then(([ob,prods,pnds,msgs,proj])=>{
-      const obData=ob&&ob.length>0?ob[0]:null;
-      setOnboarding(obData);
-      setObSaved(!!obData);
-      if(obData) setForm(f=>({...f,...obData}));
-      setProducts(prods||[]);
-      setPendings(pnds||[]);
-      setMessages(msgs||[]);
-      setProjectData(proj&&proj.length>0?proj[0]:null);
-      setLoadingProject(false);
-    });
-  },[selectedProject]);
+    const load=async()=>{
+      setLoadingInit(true);
+      try{
+        const projs=await api.get("projects",`client_user_id=eq.${user.id}&order=created_at.desc`);
+        if(projs&&projs.length>0){
+          const proj=projs[0];
+          setProjectId(proj.id);
+          setProjectData(proj);
+          setProjectCreated(true);
+          const [ob,prods,pnds,msgs]=await Promise.all([
+            api.get("onboarding",`project_id=eq.${proj.id}`),
+            api.get("products",`project_id=eq.${proj.id}&order=created_at.desc`),
+            api.get("pendings",`project_id=eq.${proj.id}&order=sent_at.desc`),
+            api.get("messages",`project_id=eq.${proj.id}&order=created_at.asc`),
+          ]);
+          const obData=ob&&ob.length>0?ob[0]:null;
+          setOnboarding(obData);
+          setObSaved(!!obData);
+          if(obData) setForm(f=>({...f,...obData}));
+          setProducts(prods||[]);
+          setPendings(pnds||[]);
+          setMessages(msgs||[]);
+          setSection("project");
+        }
+      }catch(e){console.error(e);}
+      setLoadingInit(false);
+    };
+    load();
+  },[user.id]);
+
+  const refreshProject=async(pid)=>{
+    const id=pid||projectId;
+    if(!id) return;
+    const [ob,prods,pnds,msgs,proj]=await Promise.all([
+      api.get("onboarding",`project_id=eq.${id}`),
+      api.get("products",`project_id=eq.${id}&order=created_at.desc`),
+      api.get("pendings",`project_id=eq.${id}&order=sent_at.desc`),
+      api.get("messages",`project_id=eq.${id}&order=created_at.asc`),
+      api.get("projects",`id=eq.${id}`),
+    ]);
+    const obData=ob&&ob.length>0?ob[0]:null;
+    setOnboarding(obData);
+    setObSaved(!!obData);
+    if(obData) setForm(f=>({...f,...obData}));
+    setProducts(prods||[]);
+    setPendings(pnds||[]);
+    setMessages(msgs||[]);
+    if(proj&&proj.length>0) setProjectData(proj[0]);
+  };
 
   const Label=({t})=>(<label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>{t}</label>);
   const Field=({label,k,type="text",placeholder=""})=>(<div style={{marginBottom:14}}><Label t={label}/><input type={type} style={inp} placeholder={placeholder} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></div>);
@@ -199,21 +226,54 @@ const ClientDashboard=({user,token,onLogout})=>{
     {title:"Redes Sociais",icon:"📱",fields:["redes_sociais"]},
   ];
 
-  const stepFilled=(i)=>{
-    const fields=STEPS[i].fields;
-    return fields.some(f=>form[f]&&form[f].trim());
-  };
+  const stepFilled=(i)=>STEPS[i].fields.some(f=>form[f]&&form[f].trim());
 
-  const saveOnboarding=async()=>{
-    if(!selectedProject){alert("Selecione um projeto!");return;}
+  const saveOnboarding=async(final=false)=>{
+    if(!form.company_name.trim()){alert("Preencha o nome da empresa antes de continuar!");return;}
     setSaving(true);
     try{
-      const existing=await api.get("onboarding",`project_id=eq.${selectedProject}`);
-      if(existing&&existing.length>0){ await api.patch("onboarding",{project_id:selectedProject},{...form,status:"submitted"}); }
-      else{ await api.post("onboarding",{...form,project_id:selectedProject,status:"submitted"}); }
-      const ob=await api.get("onboarding",`project_id=eq.${selectedProject}`);
-      setOnboarding(ob&&ob.length>0?ob[0]:null);
+      let pid=projectId;
+      // Cria projeto automaticamente se ainda não existe
+      if(!pid){
+        const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_project_from_onboarding`,{
+          method:"POST",headers:H,
+          body:JSON.stringify({
+            p_user_id:user.id,
+            p_user_email:user.email,
+            p_company_name:form.company_name,
+            p_platform:form.platform||"A definir",
+            p_phone:form.phone||""
+          })
+        });
+        pid=await r.json();
+        setProjectId(pid);
+        setProjectCreated(true);
+        const proj=await api.get("projects",`id=eq.${pid}`);
+        if(proj&&proj.length>0) setProjectData(proj[0]);
+      }
+      // Salva onboarding
+      const existing=await api.get("onboarding",`project_id=eq.${pid}`);
+      const status=final?"submitted":"draft";
+      if(existing&&existing.length>0){
+        await api.patch("onboarding",{project_id:pid},{...form,status});
+      } else {
+        await api.post("onboarding",{...form,project_id:pid,status});
+      }
       setObSaved(true);
+      if(final){
+        // Registra pendência de boas-vindas
+        const pnds=await api.get("pendings",`project_id=eq.${pid}&type=eq.briefing`);
+        if(!pnds||pnds.length===0){
+          await api.post("pendings",{
+            project_id:pid,type:"briefing",
+            note:"Formulário enviado! Nossa equipe irá analisar e entrar em contato.",
+            urgency:"low",channel:"email",days_blocking:0,
+            status:"open",sent_at:new Date().toISOString()
+          });
+        }
+        await refreshProject(pid);
+        setSection("project");
+      }
     }catch(e){alert("Erro ao salvar: "+e.message);}
     setSaving(false);
   };
@@ -228,17 +288,17 @@ const ClientDashboard=({user,token,onLogout})=>{
   };
 
   const saveProd=async()=>{
-    if(!selectedProject||!prodForm.name){alert("Preencha o nome do produto!");return;}
+    if(!projectId||!prodForm.name){alert("Preencha o nome do produto!");return;}
     setSaving(true);
     try{
       if(editProd){
         await api.patch("products",{id:editProd},{...prodForm,images,price:parseFloat(prodForm.price)||0,stock:parseInt(prodForm.stock)||0,weight:parseFloat(prodForm.weight)||0});
       } else {
-        await api.post("products",{...prodForm,project_id:selectedProject,price:parseFloat(prodForm.price)||0,stock:parseInt(prodForm.stock)||0,weight:parseFloat(prodForm.weight)||0,images,status:"pending"});
+        await api.post("products",{...prodForm,project_id:projectId,price:parseFloat(prodForm.price)||0,stock:parseInt(prodForm.stock)||0,weight:parseFloat(prodForm.weight)||0,images,status:"pending"});
       }
       setProdForm({code:"",ean:"",name:"",description:"",category:"",price:"",stock:"",weight:"",height:"",width:"",length:""});
       setImages([]);setShowProdForm(false);setEditProd(null);
-      const d=await api.get("products",`project_id=eq.${selectedProject}&order=created_at.desc`);
+      const d=await api.get("products",`project_id=eq.${projectId}&order=created_at.desc`);
       setProducts(d||[]);
     }catch(e){alert("Erro: "+e.message);}
     setSaving(false);
@@ -258,23 +318,35 @@ const ClientDashboard=({user,token,onLogout})=>{
   };
 
   const sendMessage=async()=>{
-    if(!newMsg.trim()||!selectedProject) return;
-    await api.post("messages",{project_id:selectedProject,from_role:"client",text:newMsg});
+    if(!newMsg.trim()||!projectId) return;
+    await api.post("messages",{project_id:projectId,from_role:"client",text:newMsg});
     setNewMsg("");
-    const msgs=await api.get("messages",`project_id=eq.${selectedProject}&order=created_at.asc`);
+    const msgs=await api.get("messages",`project_id=eq.${projectId}&order=created_at.asc`);
     setMessages(msgs||[]);
   };
 
-  const openPendings=pendings.filter(x=>x.status==="open");
+  const openPendings=pendings.filter(x=>x.status==="open"&&x.type!=="briefing");
   const progress=projectData?.progress||0;
   const phase=projectData?.phase||0;
 
-  const SECTIONS=[
+  const SECTIONS=projectCreated?[
     {id:"project",label:"📊 Meu Projeto"},
     {id:"onboarding",label:"📋 Informações"},
-    {id:"products",label:`📦 Produtos ${products.length>0?`(${products.length})`:""}`},
-    {id:"messages",label:`💬 Mensagens ${messages.length>0?`(${messages.length})`:""}`},
+    {id:"products",label:`📦 Produtos${products.length>0?` (${products.length})`:""}`},
+    {id:"messages",label:`💬 Mensagens${messages.length>0?` (${messages.length})`:""}`},
+  ]:[
+    {id:"onboarding",label:"📋 Preencher Formulário"},
   ];
+
+  if(loadingInit) return(
+    <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <style>{GLOBAL_STYLE}</style>
+      <div style={{textAlign:"center"}}>
+        <Spinner/>
+        <div style={{color:C.muted,fontSize:13,marginTop:12}}>Carregando seu projeto...</div>
+      </div>
+    </div>
+  );
 
   return(
     <div style={{background:C.bg,minHeight:"100vh",fontFamily:FONT,color:C.text}}>
@@ -287,12 +359,12 @@ const ClientDashboard=({user,token,onLogout})=>{
           <div style={{color:C.muted,fontSize:9,letterSpacing:"0.15em"}}>PORTAL DO CLIENTE</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {openPendings.length>0&&<span style={{background:C.danger+"20",color:C.danger,border:`1px solid ${C.danger}40`,borderRadius:20,fontSize:11,fontFamily:FONT,padding:"3px 10px",fontWeight:600}}>⚠ {openPendings.length} pendência(s)</span>}
+          {openPendings.length>0&&<span style={{background:C.danger+"20",color:C.danger,border:`1px solid ${C.danger}40`,borderRadius:20,fontSize:11,padding:"3px 10px",fontWeight:600}}>⚠ {openPendings.length} pendência(s)</span>}
           <button onClick={onLogout} style={{...btnG,padding:"6px 12px",fontSize:11}}>Sair</button>
         </div>
       </div>
 
-      {/* SECTION TABS */}
+      {/* TABS */}
       <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"0 16px",display:"flex",gap:0,overflowX:"auto"}}>
         {SECTIONS.map(s=>(
           <button key={s.id} onClick={()=>setSection(s.id)} style={{background:"transparent",border:"none",borderBottom:section===s.id?`2px solid ${C.accent}`:"2px solid transparent",color:section===s.id?C.accent:C.muted,fontFamily:FONT,fontSize:12,padding:"12px 16px",cursor:"pointer",marginBottom:-1,whiteSpace:"nowrap"}}>{s.label}</button>
@@ -301,122 +373,326 @@ const ClientDashboard=({user,token,onLogout})=>{
 
       <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px"}}>
 
-        {/* SELETOR DE PROJETO */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 18px",marginBottom:20}}>
-          <Label t="SEU PROJETO"/>
-          <select style={inp} value={selectedProject} onChange={e=>setSelectedProject(e.target.value)}>
-            <option value="">-- Selecione seu projeto --</option>
-            {projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-
-        {!selectedProject?(
-          <div style={{textAlign:"center",padding:60,color:C.muted}}>
-            <div style={{fontSize:48,marginBottom:12}}>👆</div>
-            <div style={{fontFamily:FONT_D,fontSize:18,color:C.accent}}>Selecione seu projeto</div>
-            <div style={{fontSize:13,marginTop:8}}>Escolha o projeto acima para começar</div>
+        {/* ── PRIMEIRO ACESSO — SEM PROJETO ── */}
+        {!projectCreated&&section==="onboarding"&&(
+          <div style={{background:C.card,border:`1px solid ${C.accentBorder}`,borderRadius:14,padding:20,marginBottom:20}}>
+            <div style={{fontSize:32,marginBottom:8,textAlign:"center"}}>👋</div>
+            <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,textAlign:"center",color:C.accent,marginBottom:8}}>Bem-vindo à Implementa!</div>
+            <div style={{color:C.muted,fontSize:13,textAlign:"center",marginBottom:0,lineHeight:1.6}}>
+              Preencha o formulário abaixo para iniciarmos seu projeto.<br/>
+              Ao enviar, seu projeto será criado automaticamente.
+            </div>
           </div>
-        ):loadingProject?<Spinner/>:(
-          <>
+        )}
 
-          {/* ── MEU PROJETO (DASHBOARD) ── */}
-          {section==="project"&&(
-            <div className="fade">
-              {/* ALERTAS DE PENDÊNCIAS */}
-              {openPendings.length>0&&(
-                <div style={{background:C.danger+"10",border:`1px solid ${C.danger}40`,borderRadius:12,padding:"16px 20px",marginBottom:20}}>
-                  <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:14,color:C.danger,marginBottom:10}}>⚠ Você tem {openPendings.length} pendência(s) em aberto</div>
-                  {openPendings.map(p=>{
-                    const PTYPES=[{id:"logo",label:"Logotipo",icon:"🎨"},{id:"content",label:"Conteúdo",icon:"📝"},{id:"photos",label:"Fotos",icon:"📷"},{id:"access",label:"Acessos",icon:"🔑"},{id:"approval",label:"Aprovação",icon:"✅"},{id:"payment",label:"Pagamento",icon:"💳"},{id:"briefing",label:"Briefing",icon:"📋"},{id:"domain",label:"Domínio",icon:"🌐"},{id:"products",label:"Produtos",icon:"🛒"},{id:"feedback",label:"Feedback",icon:"💬"},{id:"other",label:"Outro",icon:"⚠️"}];
-                    const pt=PTYPES.find(t=>t.id===p.type);
-                    return(
-                      <div key={p.id} style={{background:C.card,borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
-                        <span style={{fontSize:18}}>{pt?.icon}</span>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:600}}>{pt?.label}</div>
-                          {p.note&&<div style={{color:C.muted,fontSize:12}}>{p.note}</div>}
-                        </div>
-                        <span style={{color:C.danger,fontSize:11}}>⏳ {p.days_blocking}d</span>
+        {/* ── MEU PROJETO (DASHBOARD) ── */}
+        {section==="project"&&projectCreated&&(
+          <div className="fade">
+            {/* ALERTAS DE PENDÊNCIAS */}
+            {openPendings.length>0&&(
+              <div style={{background:C.danger+"10",border:`1px solid ${C.danger}40`,borderRadius:12,padding:"16px 20px",marginBottom:20}}>
+                <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:14,color:C.danger,marginBottom:10}}>⚠ Você tem {openPendings.length} pendência(s) que precisam da sua atenção!</div>
+                {openPendings.map(p=>{
+                  const PTYPES=[{id:"logo",label:"Logotipo",icon:"🎨"},{id:"content",label:"Conteúdo",icon:"📝"},{id:"photos",label:"Fotos",icon:"📷"},{id:"access",label:"Acessos",icon:"🔑"},{id:"approval",label:"Aprovação",icon:"✅"},{id:"payment",label:"Pagamento",icon:"💳"},{id:"briefing",label:"Briefing",icon:"📋"},{id:"domain",label:"Domínio",icon:"🌐"},{id:"products",label:"Produtos",icon:"🛒"},{id:"feedback",label:"Feedback",icon:"💬"},{id:"other",label:"Outro",icon:"⚠️"}];
+                  const pt=PTYPES.find(t=>t.id===p.type);
+                  return(
+                    <div key={p.id} style={{background:C.card,borderRadius:8,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:18}}>{pt?.icon}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:600}}>{pt?.label}</div>
+                        {p.note&&<div style={{color:C.muted,fontSize:12}}>{p.note}</div>}
                       </div>
-                    );
-                  })}
-                  <button onClick={()=>setSection("messages")} style={{...btnP,fontSize:12,marginTop:8,background:C.danger}}>💬 Responder Equipe</button>
-                </div>
-              )}
+                      {p.days_blocking>0&&<span style={{color:C.danger,fontSize:11}}>⏳ {p.days_blocking}d</span>}
+                    </div>
+                  );
+                })}
+                <button onClick={()=>setSection("messages")} style={{...btnP,fontSize:12,marginTop:8,background:C.danger}}>💬 Falar com a Equipe</button>
+              </div>
+            )}
 
-              {/* PROGRESSO DO PROJETO */}
-              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,marginBottom:16}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
-                  <div>
-                    <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{projectData?.name}</div>
-                    <div style={{color:C.muted,fontSize:13,marginTop:4}}>
-                      {projectData?.deadline&&`Previsão: ${new Date(projectData.deadline).toLocaleDateString("pt-BR")}`}
+            {/* PROGRESSO */}
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12}}>
+                <div>
+                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800}}>{projectData?.name}</div>
+                  {projectData?.deadline&&<div style={{color:C.muted,fontSize:13,marginTop:4}}>Previsão de entrega: {new Date(projectData.deadline).toLocaleDateString("pt-BR")}</div>}
+                </div>
+                <Ring value={progress} size={64}/>
+              </div>
+              <div style={{marginBottom:6}}><Badge status={projectData?.status||"on-track"}/></div>
+              <div style={{marginTop:16,marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+                  <span style={{color:C.muted,fontSize:11,letterSpacing:"0.08em"}}>FASE ATUAL</span>
+                  <span style={{color:C.warn,fontSize:12,fontWeight:600}}>{PHASES[phase]}</span>
+                </div>
+                <div style={{display:"flex",gap:3,marginBottom:6}}>
+                  {PHASES.map((_,i)=><div key={i} style={{height:6,flex:1,borderRadius:3,background:i<phase?C.accent:i===phase?C.warn:C.border,transition:"background .3s"}}/>)}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between"}}>
+                  {PHASES.map((ph,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:9,color:i===phase?C.warn:i<phase?C.accent:C.muted,fontWeight:i===phase?700:400}}>{ph.substring(0,5)}</div>)}
+                </div>
+              </div>
+            </div>
+
+            {/* CARDS RESUMO */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center",cursor:"pointer"}} onClick={()=>setSection("products")}>
+                <div style={{fontSize:28,marginBottom:4}}>📦</div>
+                <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:C.accent}}>{products.length}</div>
+                <div style={{color:C.muted,fontSize:12}}>Produtos Enviados</div>
+              </div>
+              <div style={{background:C.card,border:`1px solid ${openPendings.length>0?C.danger:C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:4}}>⚠</div>
+                <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:openPendings.length>0?C.danger:C.accent}}>{openPendings.length}</div>
+                <div style={{color:C.muted,fontSize:12}}>Pendências</div>
+              </div>
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center",cursor:"pointer"}} onClick={()=>setSection("messages")}>
+                <div style={{fontSize:28,marginBottom:4}}>💬</div>
+                <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:C.blue}}>{messages.length}</div>
+                <div style={{color:C.muted,fontSize:12}}>Mensagens</div>
+              </div>
+              <div style={{background:C.card,border:`1px solid ${obSaved?C.accentBorder:C.warn+"50"}`,borderRadius:12,padding:16,textAlign:"center",cursor:"pointer"}} onClick={()=>setSection("onboarding")}>
+                <div style={{fontSize:28,marginBottom:4}}>📋</div>
+                <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:obSaved?C.accent:C.warn}}>{obSaved?"✓":"!"}</div>
+                <div style={{color:C.muted,fontSize:12}}>{obSaved?"Briefing Enviado":"Preencher Briefing"}</div>
+              </div>
+            </div>
+
+            {/* ÚLTIMAS MENSAGENS */}
+            {messages.length>0&&(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <div style={{fontFamily:FONT_D,fontSize:14,fontWeight:800}}>💬 Últimas Mensagens</div>
+                  <button onClick={()=>setSection("messages")} style={{background:"transparent",border:"none",color:C.accent,fontFamily:FONT,fontSize:12,cursor:"pointer"}}>Ver todas →</button>
+                </div>
+                {messages.slice(-3).map((m,i)=>(
+                  <div key={i} style={{display:"flex",gap:10,marginBottom:8,padding:"8px 10px",background:C.surface,borderRadius:8}}>
+                    <span style={{fontSize:14}}>{m.from_role==="client"?"👤":"📤"}</span>
+                    <div>
+                      <div style={{fontSize:10,color:C.muted,marginBottom:2}}>{m.from_role==="client"?"Você":"Equipe Implementa"} · {new Date(m.created_at).toLocaleDateString("pt-BR")}</div>
+                      <div style={{fontSize:13}}>{m.text}</div>
                     </div>
                   </div>
-                  <Ring value={progress} size={64}/>
-                </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
-                {/* STATUS BADGE */}
-                <div style={{marginBottom:16}}>
-                  <Badge status={projectData?.status||"on-track"}/>
-                </div>
+        {/* ── ONBOARDING ── */}
+        {section==="onboarding"&&(
+          <div className="fade">
+            {obSaved&&(
+              <div style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:10,padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
+                <span>✅</span>
+                <span style={{color:C.accent,fontSize:13}}>Informações salvas! Você pode editar a qualquer momento.</span>
+              </div>
+            )}
+            <div style={{display:"flex",gap:4,marginBottom:20,overflowX:"auto",paddingBottom:4}}>
+              {STEPS.map((s,i)=>(
+                <button key={i} onClick={()=>setStep(i)} style={{background:step===i?C.accentDim:stepFilled(i)?C.subtle:"transparent",border:`1px solid ${step===i?C.accent:stepFilled(i)?C.accentBorder:C.border}`,borderRadius:8,color:step===i?C.accent:stepFilled(i)?C.text:C.muted,fontFamily:FONT,fontSize:11,padding:"8px 12px",cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
+                  {stepFilled(i)&&step!==i?<span style={{color:C.accent}}>✓</span>:<span>{s.icon}</span>}{s.title}
+                </button>
+              ))}
+            </div>
 
-                {/* FASE ATUAL */}
-                <div style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                    <span style={{color:C.muted,fontSize:11,letterSpacing:"0.08em"}}>FASE ATUAL</span>
-                    <span style={{color:C.warn,fontSize:12,fontWeight:600}}>{PHASES[phase]}</span>
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24}} className="fade">
+              <div style={{fontFamily:FONT_D,fontSize:17,fontWeight:800,marginBottom:18}}>{STEPS[step].icon} {STEPS[step].title}</div>
+
+              {step===0&&<>
+                <Field label="RAZÃO SOCIAL / NOME DA EMPRESA *" k="company_name" placeholder="Ex: Loja XYZ LTDA"/>
+                <Field label="CNPJ" k="cnpj" placeholder="00.000.000/0001-00"/>
+                <Field label="E-MAIL COMERCIAL" k="email" type="email" placeholder="contato@empresa.com.br"/>
+                <Field label="TELEFONE / WHATSAPP" k="phone" placeholder="(11) 99999-9999"/>
+                <TextArea label="ENDEREÇO COMPLETO" k="address" placeholder="Rua, número, bairro, cidade, estado, CEP"/>
+              </>}
+              {step===1&&<>
+                <div style={{marginBottom:14}}>
+                  <Label t="PLATAFORMA DE ECOMMERCE"/>
+                  <select style={inp} value={form.platform||""} onChange={e=>setForm(f=>({...f,platform:e.target.value}))}>
+                    <option value="">-- Selecione --</option>
+                    {["VTEX","Shopify","Nuvemshop","Loja Integrada","Tray","WooCommerce","Magento","Outro"].map(p=><option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <Field label="LOGIN DA PLATAFORMA" k="platform_login" placeholder="usuário ou e-mail"/>
+                <Field label="SENHA DA PLATAFORMA" k="platform_password" type="password" placeholder="••••••••"/>
+                <Field label="LOGIN REGISTRO.BR" k="registrobr_login" placeholder="usuário do registro.br"/>
+                <Field label="SENHA REGISTRO.BR" k="registrobr_password" type="password" placeholder="••••••••"/>
+              </>}
+              {step===2&&<>
+                <Field label="ERP UTILIZADO" k="erp" placeholder="Ex: Bling, Tiny, SAP, TOTVS..."/>
+                <Field label="LOGIN DO ERP" k="erp_login" placeholder="usuário ou e-mail"/>
+                <Field label="SENHA DO ERP" k="erp_password" type="password" placeholder="••••••••"/>
+                <Field label="GATEWAY DE ENVIO" k="gateway_envio" placeholder="Ex: Melhor Envio, Frenet..."/>
+                <Field label="GATEWAY DE PAGAMENTO" k="gateway_pagamento" placeholder="Ex: PagSeguro, Mercado Pago..."/>
+                <Field label="SENHA DO CERTIFICADO DIGITAL" k="certificado_senha" type="password" placeholder="Senha do certificado A1/A3"/>
+                <div style={{background:C.warn+"10",border:`1px solid ${C.warn}30`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.warn}}>⚠ Envie o certificado .pfx por e-mail ou WhatsApp para a equipe técnica</div>
+              </>}
+              {step===3&&<>
+                <TextArea label="CORES DA MARCA" k="cores" placeholder="Ex: Primária #FF0000, Secundária #000000"/>
+                <div style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.accent,marginBottom:14}}>📎 Envie logo e manual da marca por e-mail ou WhatsApp</div>
+                <TextArea label="INFORMAÇÕES DE ATENDIMENTO" k="atendimento_info" placeholder="Horário, telefone, e-mail de SAC..."/>
+                <TextArea label="QUEM SOMOS" k="quem_somos" placeholder="Breve descrição da empresa..."/>
+              </>}
+              {step===4&&<>
+                <TextArea label="CATEGORIAS E SUBCATEGORIAS" k="categorias" placeholder="Ex: Camisetas > Masculino, Feminino&#10;Calças > Jeans, Social"/>
+                <TextArea label="SITES DE REFERÊNCIA" k="referencias_sites" placeholder="Links de sites que usa como referência"/>
+              </>}
+              {step===5&&<>
+                <TextArea label="REDES SOCIAIS" k="redes_sociais" placeholder="Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja"/>
+              </>}
+
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:20,gap:10,flexWrap:"wrap"}}>
+                <button onClick={()=>setStep(s=>Math.max(0,s-1))} disabled={step===0} style={{...btnG,opacity:step===0?0.4:1,fontSize:12,padding:"9px 16px"}}>← Anterior</button>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>saveOnboarding(false)} disabled={saving} style={{...btnG,fontSize:12,padding:"9px 16px",color:C.accent,borderColor:C.accentBorder,opacity:saving?0.6:1}}>💾 Salvar Rascunho</button>
+                  {step<STEPS.length-1
+                    ?<button onClick={()=>setStep(s=>s+1)} style={{...btnP,fontSize:12,padding:"9px 16px"}}>Próximo →</button>
+                    :<button onClick={()=>saveOnboarding(true)} disabled={saving} style={{...btnP,fontSize:12,padding:"9px 16px",opacity:saving?0.6:1}}>{saving?<Spinner small/>:"✅ Enviar e Criar Projeto"}</button>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div style={{display:"flex",justifyContent:"center",gap:5,marginTop:14}}>
+              {STEPS.map((_,i)=>(<div key={i} style={{width:i===step?20:8,height:7,borderRadius:4,background:i===step?C.accent:stepFilled(i)?C.accentBorder:C.border,transition:"all .3s"}}/>))}
+            </div>
+          </div>
+        )}
+
+        {/* ── PRODUTOS ── */}
+        {section==="products"&&(
+          <div className="fade">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div>
+                <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800}}>Cadastro de Produtos</div>
+                <div style={{color:C.muted,fontSize:12}}>{products.length} produto(s) enviado(s)</div>
+              </div>
+              <button onClick={()=>{setShowProdForm(true);setEditProd(null);setProdForm({code:"",ean:"",name:"",description:"",category:"",price:"",stock:"",weight:"",height:"",width:"",length:""});setImages([]);}} style={{...btnP,fontSize:12,padding:"9px 16px"}}>+ Adicionar</button>
+            </div>
+
+            {showProdForm&&(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:20,marginBottom:20}} className="fade">
+                <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800,marginBottom:14}}>{editProd?"✏️ Editar Produto":"📦 Novo Produto"}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CÓD. PRODUTO</label>{PF("code","text","Opcional")}</div>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>EAN / CÓD. BARRAS</label>{PF("ean","text","Opcional")}</div>
+                </div>
+                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>NOME DO PRODUTO *</label>{PF("name","text","Nome completo do produto")}</div>
+                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>DESCRIÇÃO</label><textarea style={{...inp,minHeight:72,resize:"vertical"}} placeholder="Descrição detalhada..." value={prodForm.description||""} onChange={e=>setProdForm(f=>({...f,description:e.target.value}))}/></div>
+                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CATEGORIA</label>{PF("category","text","Ex: Camisetas > Masculino")}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>PREÇO (R$)</label>{PF("price","number","0,00")}</div>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>ESTOQUE</label>{PF("stock","number","0")}</div>
+                </div>
+                <div style={{marginBottom:12}}>
+                  <label style={{color:C.muted,fontSize:11,display:"block",marginBottom:8}}>📦 MEDIDAS PARA FRETE</label>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>PESO (kg)</label>{PF("weight","number","0.5")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>ALTURA (cm)</label>{PF("height","number","10")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>LARGURA (cm)</label>{PF("width","number","15")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>COMPRIMENTO (cm)</label>{PF("length","number","20")}</div>
                   </div>
-                  <div style={{display:"flex",gap:3}}>
-                    {PHASES.map((ph,i)=>(
-                      <div key={i} title={ph} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                        <div style={{height:6,width:"100%",borderRadius:3,background:i<phase?C.accent:i===phase?C.warn:C.border,transition:"background .3s"}}/>
-                        <div style={{fontSize:9,color:i===phase?C.warn:i<phase?C.accent:C.muted,textAlign:"center",display:"none"}}>{ph}</div>
+                </div>
+                <div style={{marginBottom:16}}>
+                  <label style={{color:C.muted,fontSize:11,display:"block",marginBottom:8}}>📸 FOTOS (até 5) — tire pelo celular!</label>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                    {images.map((img,i)=>(
+                      <div key={i} style={{position:"relative"}}>
+                        <img src={img} style={{width:72,height:72,objectFit:"cover",borderRadius:8,border:`1px solid ${C.border}`}}/>
+                        <button onClick={()=>setImages(prev=>prev.filter((_,j)=>j!==i))} style={{position:"absolute",top:-6,right:-6,background:C.danger,border:"none",borderRadius:"50%",width:18,height:18,color:"#fff",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
                       </div>
                     ))}
+                    {images.length<5&&(
+                      <label style={{width:72,height:72,border:`2px dashed ${C.border}`,borderRadius:8,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.muted,fontSize:22,gap:2}}>
+                        <span>+</span><span style={{fontSize:9}}>foto</span>
+                        <input type="file" accept="image/*" multiple capture="environment" onChange={handleImage} style={{display:"none"}}/>
+                      </label>
+                    )}
                   </div>
-                  <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-                    {PHASES.map((ph,i)=>(
-                      <div key={i} style={{flex:1,textAlign:"center",fontSize:9,color:i===phase?C.warn:i<phase?C.accent:C.muted,fontWeight:i===phase?700:400}}>{ph.substring(0,4)}</div>
-                    ))}
-                  </div>
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <button onClick={saveProd} disabled={saving} style={{...btnP,flex:1,opacity:saving?0.6:1}}>{saving?<Spinner small/>:editProd?"✓ Salvar Alterações":"✅ Salvar Produto"}</button>
+                  <button onClick={()=>{setShowProdForm(false);setEditProd(null);}} style={btnG}>Cancelar</button>
                 </div>
               </div>
+            )}
 
-              {/* CARDS RESUMO */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-                <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
-                  <div style={{fontSize:28,marginBottom:4}}>📦</div>
-                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:C.accent}}>{products.length}</div>
-                  <div style={{color:C.muted,fontSize:12}}>Produtos Enviados</div>
-                </div>
-                <div style={{background:C.card,border:`1px solid ${openPendings.length>0?C.danger:C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
-                  <div style={{fontSize:28,marginBottom:4}}>⚠</div>
-                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:openPendings.length>0?C.danger:C.accent}}>{openPendings.length}</div>
-                  <div style={{color:C.muted,fontSize:12}}>Pendências em Aberto</div>
-                </div>
-                <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
-                  <div style={{fontSize:28,marginBottom:4}}>💬</div>
-                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:C.blue}}>{messages.length}</div>
-                  <div style={{color:C.muted,fontSize:12}}>Mensagens</div>
-                </div>
-                <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,textAlign:"center"}}>
-                  <div style={{fontSize:28,marginBottom:4}}>📋</div>
-                  <div style={{fontFamily:FONT_D,fontSize:22,fontWeight:800,color:obSaved?C.accent:C.warn}}>{obSaved?"✓":"!"}</div>
-                  <div style={{color:C.muted,fontSize:12}}>{obSaved?"Briefing Enviado":"Briefing Pendente"}</div>
-                </div>
+            {products.length===0&&!showProdForm?(
+              <div style={{textAlign:"center",padding:48,color:C.muted}}>
+                <div style={{fontSize:40,marginBottom:12}}>📦</div>
+                <div style={{fontFamily:FONT_D,fontSize:16,color:C.accent}}>Nenhum produto ainda</div>
+                <div style={{fontSize:13,marginTop:8}}>Clique em "+ Adicionar" para cadastrar seus produtos</div>
               </div>
-
-              {/* ÚLTIMAS MENSAGENS */}
-              {messages.length>0&&(
-                <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <div style={{fontFamily:FONT_D,fontSize:14,fontWeight:800}}>💬 Últimas Mensagens</div>
-                    <button onClick={()=>setSection("messages")} style={{background:"transparent",border:"none",color:C.accent,fontFamily:FONT,fontSize:12,cursor:"pointer"}}>Ver todas →</button>
+            ):(
+              <div>
+                {products.length>0&&(
+                  <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",gap:24,flexWrap:"wrap"}}>
+                    <div style={{textAlign:"center"}}><div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,color:C.accent}}>{products.length}</div><div style={{color:C.muted,fontSize:11}}>Produtos</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,color:C.blue}}>{products.reduce((a,p)=>a+(parseInt(p.stock)||0),0)}</div><div style={{color:C.muted,fontSize:11}}>Estoque Total</div></div>
+                    <div style={{textAlign:"center"}}><div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,color:C.purple}}>{[...new Set(products.map(p=>p.category).filter(Boolean))].length}</div><div style={{color:C.muted,fontSize:11}}>Categorias</div></div>
                   </div>
-                  {messages.slice(-3).map((m,i)=>(
-                    <div key={i} style={{display:"flex",gap:10,marginBottom:8,padding:"8px 10px",background:C.surface,borderRadius:8}}>
-                      <span style={{fontSize:14}}>{m.from_role==="team"?"📤":"👤"}</span>
+                )}
+                {products.map(p=>(
+                  <div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:10,display:"flex",gap:12,alignItems:"flex-start"}}>
+                    {p.images&&p.images.length>0
+                      ?<img src={p.images[0]} style={{width:68,height:68,objectFit:"cover",borderRadius:8,flexShrink:0,border:`1px solid ${C.border}`}}/>
+                      :<div style={{width:68,height:68,background:C.subtle,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>📦</div>
+                    }
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:FONT_D,fontWeight:700,fontSize:14}}>{p.name}</div>
+                      {p.category&&<div style={{color:C.muted,fontSize:12,marginTop:2}}>{p.category}</div>}
+                      <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap"}}>
+                        {p.price>0&&<span style={{background:C.accentDim,color:C.accent,borderRadius:4,padding:"1px 8px",fontSize:11}}>R$ {parseFloat(p.price).toFixed(2)}</span>}
+                        {p.stock>0&&<span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"1px 8px",fontSize:11}}>Estoque: {p.stock}</span>}
+                        {p.code&&<span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"1px 8px",fontSize:11}}>#{p.code}</span>}
+                        {p.ean&&<span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"1px 8px",fontSize:11}}>EAN: {p.ean}</span>}
+                        {p.weight&&<span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"1px 8px",fontSize:11}}>{p.weight}kg</span>}
+                        {p.images&&p.images.length>1&&<span style={{background:C.subtle,color:C.muted,borderRadius:4,padding:"1px 8px",fontSize:11}}>📷 {p.images.length}</span>}
+                      </div>
+                      {p.description&&<div style={{color:C.muted,fontSize:11,marginTop:6,lineHeight:1.4}}>{p.description.substring(0,80)}{p.description.length>80?"...":""}</div>}
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:6,flexShrink:0}}>
+                      <button onClick={()=>openEditProd(p)} style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:6,color:C.accent,fontFamily:FONT,fontSize:11,padding:"5px 10px",cursor:"pointer"}}>✏️</button>
+                      <button onClick={()=>deleteProd(p.id)} style={{background:C.danger+"15",border:`1px solid ${C.danger}40`,borderRadius:6,color:C.danger,fontFamily:FONT,fontSize:11,padding:"5px 10px",cursor:"pointer"}}>🗑</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MENSAGENS ── */}
+        {section==="messages"&&(
+          <div className="fade">
+            <div style={{fontFamily:FONT_D,fontSize:20,fontWeight:800,marginBottom:16}}>💬 Comunicação com a Equipe</div>
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,marginBottom:14,maxHeight:420,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+              {messages.length===0
+                ?<div style={{textAlign:"center",padding:48,color:C.muted}}><div style={{fontSize:32,marginBottom:8}}>💬</div><div>Nenhuma mensagem ainda.</div><div style={{fontSize:12,marginTop:4}}>Use este canal para falar com a equipe Implementa.</div></div>
+                :messages.map((m,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:m.from_role==="client"?"flex-end":"flex-start"}}>
+                    <div style={{background:m.from_role==="client"?C.accentDim:C.subtle,border:`1px solid ${m.from_role==="client"?C.accentBorder:C.border}`,borderRadius:10,padding:"10px 14px",maxWidth:"78%"}}>
+                      <div style={{fontSize:10,color:C.muted,marginBottom:4}}>{m.from_role==="client"?"👤 Você":"📤 Equipe Implementa"} · {new Date(m.created_at).toLocaleDateString("pt-BR")} {new Date(m.created_at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</div>
+                      <div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{m.text}</div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <textarea style={{...inp,flex:1,minHeight:50,resize:"none"}} placeholder="Digite sua mensagem..." value={newMsg} onChange={e=>setNewMsg(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&(e.preventDefault(),sendMessage())}/>
+              <button onClick={sendMessage} style={{...btnP,padding:"10px 20px",alignSelf:"flex-end"}}>Enviar</button>
+            </div>
+            <div style={{color:C.muted,fontSize:11,marginTop:6}}>Enter para enviar · Shift+Enter para nova linha</div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
                       <div>
                         <div style={{fontSize:10,color:C.muted,marginBottom:2}}>{m.from_role==="team"?"Equipe Implementa":"Você"} · {new Date(m.created_at).toLocaleDateString("pt-BR")}</div>
                         <div style={{fontSize:13,color:C.text}}>{m.text}</div>
