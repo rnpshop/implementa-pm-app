@@ -495,51 +495,45 @@ const ClientDashboard=({user,token,onLogout})=>{
               ))}
             </div>
 
-            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24}} className="fade">
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:24}}>
               <div style={{fontFamily:FONT_D,fontSize:17,fontWeight:800,marginBottom:18}}>{STEPS[step].icon} {STEPS[step].title}</div>
 
-              {step===0&&<>
-                {fld("RAZÃO SOCIAL / NOME DA EMPRESA *","company_name","text","Ex: Loja XYZ LTDA")}
-                {fld("CNPJ","cnpj","text","00.000.000/0001-00")}
-                {fld("E-MAIL COMERCIAL","email","email","contato@empresa.com.br")}
-                {fld("TELEFONE / WHATSAPP","phone","text","(11) 99999-9999")}
-                {txa("ENDEREÇO COMPLETO","address","Rua, número, bairro, cidade, estado, CEP")}
-              </>}
-              {step===1&&<>
-                <div style={{marginBottom:14}}>
-                  <Label t="PLATAFORMA DE ECOMMERCE"/>
-                  <select style={inp} value={form.platform||""} onChange={e=>setForm(f=>({...f,platform:e.target.value}))}>
-                    <option value="">-- Selecione --</option>
-                    {["VTEX","Shopify","Nuvemshop","Loja Integrada","Tray","WooCommerce","Magento","Outro"].map(p=><option key={p}>{p}</option>)}
-                  </select>
-                </div>
-                {fld("LOGIN DA PLATAFORMA","platform_login","text","usuário ou e-mail")}
-                {fld("SENHA DA PLATAFORMA","platform_password","password","••••••••")}
-                {fld("LOGIN REGISTRO.BR","registrobr_login","text","usuário do registro.br")}
-                {fld("SENHA REGISTRO.BR","registrobr_password","password","••••••••")}
-              </>}
-              {step===2&&<>
-                {fld("ERP UTILIZADO","erp","text","Ex: Bling, Tiny, SAP, TOTVS...")}
-                {fld("LOGIN DO ERP","erp_login","text","usuário ou e-mail")}
-                {fld("SENHA DO ERP","erp_password","password","••••••••")}
-                {fld("GATEWAY DE ENVIO","gateway_envio","text","Ex: Melhor Envio, Frenet...")}
-                {fld("GATEWAY DE PAGAMENTO","gateway_pagamento","text","Ex: PagSeguro, Mercado Pago...")}
-                {fld("SENHA DO CERTIFICADO DIGITAL","certificado_senha","password","Senha do certificado A1/A3")}
+              <div style={{display:step===0?"block":"none"}}>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>RAZÃO SOCIAL / NOME DA EMPRESA *</label><input style={inp} placeholder="Ex: Loja XYZ LTDA" value={form.company_name||""} onChange={e=>setForm(f=>({...f,company_name:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>CNPJ</label><input style={inp} placeholder="00.000.000/0001-00" value={form.cnpj||""} onChange={e=>setForm(f=>({...f,cnpj:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>E-MAIL COMERCIAL</label><input type="email" style={inp} placeholder="contato@empresa.com.br" value={form.email||""} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>TELEFONE / WHATSAPP</label><input style={inp} placeholder="(11) 99999-9999" value={form.phone||""} onChange={e=>setForm(f=>({...f,phone:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>ENDEREÇO COMPLETO</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Rua, número, bairro, cidade, estado, CEP" value={form.address||""} onChange={e=>setForm(f=>({...f,address:e.target.value}))}/></div>
+              </div>
+              <div style={{display:step===1?"block":"none"}}>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>PLATAFORMA DE ECOMMERCE</label><select style={inp} value={form.platform||""} onChange={e=>setForm(f=>({...f,platform:e.target.value}))}><option value="">-- Selecione --</option>{["VTEX","Shopify","Nuvemshop","Loja Integrada","Tray","WooCommerce","Magento","Outro"].map(p=><option key={p}>{p}</option>)}</select></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>LOGIN DA PLATAFORMA</label><input style={inp} placeholder="usuário ou e-mail" value={form.platform_login||""} onChange={e=>setForm(f=>({...f,platform_login:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>SENHA DA PLATAFORMA</label><input type="password" style={inp} placeholder="••••••••" value={form.platform_password||""} onChange={e=>setForm(f=>({...f,platform_password:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>LOGIN REGISTRO.BR</label><input style={inp} placeholder="usuário do registro.br" value={form.registrobr_login||""} onChange={e=>setForm(f=>({...f,registrobr_login:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>SENHA REGISTRO.BR</label><input type="password" style={inp} placeholder="••••••••" value={form.registrobr_password||""} onChange={e=>setForm(f=>({...f,registrobr_password:e.target.value}))}/></div>
+              </div>
+              <div style={{display:step===2?"block":"none"}}>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>ERP UTILIZADO</label><input style={inp} placeholder="Ex: Bling, Tiny, SAP, TOTVS..." value={form.erp||""} onChange={e=>setForm(f=>({...f,erp:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>LOGIN DO ERP</label><input style={inp} placeholder="usuário ou e-mail" value={form.erp_login||""} onChange={e=>setForm(f=>({...f,erp_login:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>SENHA DO ERP</label><input type="password" style={inp} placeholder="••••••••" value={form.erp_password||""} onChange={e=>setForm(f=>({...f,erp_password:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>GATEWAY DE ENVIO</label><input style={inp} placeholder="Ex: Melhor Envio, Frenet..." value={form.gateway_envio||""} onChange={e=>setForm(f=>({...f,gateway_envio:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>GATEWAY DE PAGAMENTO</label><input style={inp} placeholder="Ex: PagSeguro, Mercado Pago..." value={form.gateway_pagamento||""} onChange={e=>setForm(f=>({...f,gateway_pagamento:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>SENHA DO CERTIFICADO DIGITAL</label><input type="password" style={inp} placeholder="Senha do certificado A1/A3" value={form.certificado_senha||""} onChange={e=>setForm(f=>({...f,certificado_senha:e.target.value}))}/></div>
                 <div style={{background:C.warn+"10",border:`1px solid ${C.warn}30`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.warn}}>⚠ Envie o certificado .pfx por e-mail ou WhatsApp para a equipe técnica</div>
-              </>}
-              {step===3&&<>
-                {txa("CORES DA MARCA","cores","Ex: Primária #FF0000, Secundária #000000")}
+              </div>
+              <div style={{display:step===3?"block":"none"}}>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>CORES DA MARCA</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Ex: Primária #FF0000, Secundária #000000" value={form.cores||""} onChange={e=>setForm(f=>({...f,cores:e.target.value}))}/></div>
                 <div style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.accent,marginBottom:14}}>📎 Envie logo e manual da marca por e-mail ou WhatsApp</div>
-                {txa("INFORMAÇÕES DE ATENDIMENTO","atendimento_info","Horário, telefone, e-mail de SAC...")}
-                {txa("QUEM SOMOS","quem_somos","Breve descrição da empresa...")}
-              </>}
-              {step===4&&<>
-                {txa("CATEGORIAS E SUBCATEGORIAS","categorias","Ex: Camisetas > Masculino, Feminino&#10;Calças > Jeans, Social")}
-                {txa("SITES DE REFERÊNCIA","referencias_sites","Links de sites que usa como referência")}
-              </>}
-              {step===5&&<>
-                {txa("REDES SOCIAIS","redes_sociais","Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja")}
-              </>}
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>INFORMAÇÕES DE ATENDIMENTO</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Horário, telefone, e-mail de SAC..." value={form.atendimento_info||""} onChange={e=>setForm(f=>({...f,atendimento_info:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>QUEM SOMOS</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Breve descrição da empresa..." value={form.quem_somos||""} onChange={e=>setForm(f=>({...f,quem_somos:e.target.value}))}/></div>
+              </div>
+              <div style={{display:step===4?"block":"none"}}>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>CATEGORIAS E SUBCATEGORIAS</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Ex: Camisetas > Masculino, Feminino" value={form.categorias||""} onChange={e=>setForm(f=>({...f,categorias:e.target.value}))}/></div>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>SITES DE REFERÊNCIA</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Links de sites que usa como referência" value={form.referencias_sites||""} onChange={e=>setForm(f=>({...f,referencias_sites:e.target.value}))}/></div>
+              </div>
+              <div style={{display:step===5?"block":"none"}}>
+                <div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>REDES SOCIAIS</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder="Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja" value={form.redes_sociais||""} onChange={e=>setForm(f=>({...f,redes_sociais:e.target.value}))}/></div>
+              </div>
 
               <div style={{display:"flex",justifyContent:"space-between",marginTop:20,gap:10,flexWrap:"wrap"}}>
                 <button onClick={()=>setStep(s=>Math.max(0,s-1))} disabled={step===0} style={{...btnG,opacity:step===0?0.4:1,fontSize:12,padding:"9px 16px"}}>← Anterior</button>
