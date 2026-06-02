@@ -212,10 +212,9 @@ const ClientDashboard=({user,token,onLogout})=>{
     if(proj&&proj.length>0) setProjectData(proj[0]);
   };
 
-  const Label=({t})=>(<label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>{t}</label>);
-  const Field=({label,k,type="text",placeholder=""})=>(<div style={{marginBottom:14}}><Label t={label}/><input type={type} style={inp} placeholder={placeholder} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></div>);
-  const TextArea=({label,k,placeholder=""})=>(<div style={{marginBottom:14}}><Label t={label}/><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder={placeholder} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></div>);
-  const PF=(k,type="text",ph="")=>(<input type={type} style={inp} placeholder={ph} value={prodForm[k]||""} onChange={e=>setProdForm(f=>({...f,[k]:e.target.value}))}/>);
+  const fld=(label,k,type="text",placeholder="")=>(<div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>{label}</label><input type={type} style={inp} placeholder={placeholder} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></div>);
+  const txa=(label,k,placeholder="")=>(<div style={{marginBottom:14}}><label style={{color:C.muted,fontSize:11,letterSpacing:"0.08em",display:"block",marginBottom:6}}>{label}</label><textarea style={{...inp,minHeight:80,resize:"vertical"}} placeholder={placeholder} value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))}/></div>);
+  const pf=(k,type="text",ph="")=>(<input type={type} style={inp} placeholder={ph} value={prodForm[k]||""} onChange={e=>setProdForm(f=>({...f,[k]:e.target.value}))}/>);
 
   const STEPS=[
     {title:"Dados da Empresa",icon:"🏢",fields:["company_name","cnpj","email","phone","address"]},
@@ -500,11 +499,11 @@ const ClientDashboard=({user,token,onLogout})=>{
               <div style={{fontFamily:FONT_D,fontSize:17,fontWeight:800,marginBottom:18}}>{STEPS[step].icon} {STEPS[step].title}</div>
 
               {step===0&&<>
-                <Field label="RAZÃO SOCIAL / NOME DA EMPRESA *" k="company_name" placeholder="Ex: Loja XYZ LTDA"/>
-                <Field label="CNPJ" k="cnpj" placeholder="00.000.000/0001-00"/>
-                <Field label="E-MAIL COMERCIAL" k="email" type="email" placeholder="contato@empresa.com.br"/>
-                <Field label="TELEFONE / WHATSAPP" k="phone" placeholder="(11) 99999-9999"/>
-                <TextArea label="ENDEREÇO COMPLETO" k="address" placeholder="Rua, número, bairro, cidade, estado, CEP"/>
+                {fld("RAZÃO SOCIAL / NOME DA EMPRESA *","company_name","text","Ex: Loja XYZ LTDA")}
+                {fld("CNPJ","cnpj","text","00.000.000/0001-00")}
+                {fld("E-MAIL COMERCIAL","email","email","contato@empresa.com.br")}
+                {fld("TELEFONE / WHATSAPP","phone","text","(11) 99999-9999")}
+                {txa("ENDEREÇO COMPLETO","address","Rua, número, bairro, cidade, estado, CEP")}
               </>}
               {step===1&&<>
                 <div style={{marginBottom:14}}>
@@ -514,32 +513,32 @@ const ClientDashboard=({user,token,onLogout})=>{
                     {["VTEX","Shopify","Nuvemshop","Loja Integrada","Tray","WooCommerce","Magento","Outro"].map(p=><option key={p}>{p}</option>)}
                   </select>
                 </div>
-                <Field label="LOGIN DA PLATAFORMA" k="platform_login" placeholder="usuário ou e-mail"/>
-                <Field label="SENHA DA PLATAFORMA" k="platform_password" type="password" placeholder="••••••••"/>
-                <Field label="LOGIN REGISTRO.BR" k="registrobr_login" placeholder="usuário do registro.br"/>
-                <Field label="SENHA REGISTRO.BR" k="registrobr_password" type="password" placeholder="••••••••"/>
+                {fld("LOGIN DA PLATAFORMA","platform_login","text","usuário ou e-mail")}
+                {fld("SENHA DA PLATAFORMA","platform_password","password","••••••••")}
+                {fld("LOGIN REGISTRO.BR","registrobr_login","text","usuário do registro.br")}
+                {fld("SENHA REGISTRO.BR","registrobr_password","password","••••••••")}
               </>}
               {step===2&&<>
-                <Field label="ERP UTILIZADO" k="erp" placeholder="Ex: Bling, Tiny, SAP, TOTVS..."/>
-                <Field label="LOGIN DO ERP" k="erp_login" placeholder="usuário ou e-mail"/>
-                <Field label="SENHA DO ERP" k="erp_password" type="password" placeholder="••••••••"/>
-                <Field label="GATEWAY DE ENVIO" k="gateway_envio" placeholder="Ex: Melhor Envio, Frenet..."/>
-                <Field label="GATEWAY DE PAGAMENTO" k="gateway_pagamento" placeholder="Ex: PagSeguro, Mercado Pago..."/>
-                <Field label="SENHA DO CERTIFICADO DIGITAL" k="certificado_senha" type="password" placeholder="Senha do certificado A1/A3"/>
+                {fld("ERP UTILIZADO","erp","text","Ex: Bling, Tiny, SAP, TOTVS...")}
+                {fld("LOGIN DO ERP","erp_login","text","usuário ou e-mail")}
+                {fld("SENHA DO ERP","erp_password","password","••••••••")}
+                {fld("GATEWAY DE ENVIO","gateway_envio","text","Ex: Melhor Envio, Frenet...")}
+                {fld("GATEWAY DE PAGAMENTO","gateway_pagamento","text","Ex: PagSeguro, Mercado Pago...")}
+                {fld("SENHA DO CERTIFICADO DIGITAL","certificado_senha","password","Senha do certificado A1/A3")}
                 <div style={{background:C.warn+"10",border:`1px solid ${C.warn}30`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.warn}}>⚠ Envie o certificado .pfx por e-mail ou WhatsApp para a equipe técnica</div>
               </>}
               {step===3&&<>
-                <TextArea label="CORES DA MARCA" k="cores" placeholder="Ex: Primária #FF0000, Secundária #000000"/>
+                {txa("CORES DA MARCA","cores","Ex: Primária #FF0000, Secundária #000000")}
                 <div style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.accent,marginBottom:14}}>📎 Envie logo e manual da marca por e-mail ou WhatsApp</div>
-                <TextArea label="INFORMAÇÕES DE ATENDIMENTO" k="atendimento_info" placeholder="Horário, telefone, e-mail de SAC..."/>
-                <TextArea label="QUEM SOMOS" k="quem_somos" placeholder="Breve descrição da empresa..."/>
+                {txa("INFORMAÇÕES DE ATENDIMENTO","atendimento_info","Horário, telefone, e-mail de SAC...")}
+                {txa("QUEM SOMOS","quem_somos","Breve descrição da empresa...")}
               </>}
               {step===4&&<>
-                <TextArea label="CATEGORIAS E SUBCATEGORIAS" k="categorias" placeholder="Ex: Camisetas > Masculino, Feminino&#10;Calças > Jeans, Social"/>
-                <TextArea label="SITES DE REFERÊNCIA" k="referencias_sites" placeholder="Links de sites que usa como referência"/>
+                {txa("CATEGORIAS E SUBCATEGORIAS","categorias","Ex: Camisetas > Masculino, Feminino&#10;Calças > Jeans, Social")}
+                {txa("SITES DE REFERÊNCIA","referencias_sites","Links de sites que usa como referência")}
               </>}
               {step===5&&<>
-                <TextArea label="REDES SOCIAIS" k="redes_sociais" placeholder="Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja"/>
+                {txa("REDES SOCIAIS","redes_sociais","Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja")}
               </>}
 
               <div style={{display:"flex",justifyContent:"space-between",marginTop:20,gap:10,flexWrap:"wrap"}}>
@@ -575,23 +574,23 @@ const ClientDashboard=({user,token,onLogout})=>{
               <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:20,marginBottom:20}} className="fade">
                 <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800,marginBottom:14}}>{editProd?"✏️ Editar Produto":"📦 Novo Produto"}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CÓD. PRODUTO</label>{PF("code","text","Opcional")}</div>
-                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>EAN / CÓD. BARRAS</label>{PF("ean","text","Opcional")}</div>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CÓD. PRODUTO</label>{pf("code","text","Opcional")}</div>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>EAN / CÓD. BARRAS</label>{pf("ean","text","Opcional")}</div>
                 </div>
-                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>NOME DO PRODUTO *</label>{PF("name","text","Nome completo do produto")}</div>
+                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>NOME DO PRODUTO *</label>{pf("name","text","Nome completo do produto")}</div>
                 <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>DESCRIÇÃO</label><textarea style={{...inp,minHeight:72,resize:"vertical"}} placeholder="Descrição detalhada..." value={prodForm.description||""} onChange={e=>setProdForm(f=>({...f,description:e.target.value}))}/></div>
-                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CATEGORIA</label>{PF("category","text","Ex: Camisetas > Masculino")}</div>
+                <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CATEGORIA</label>{pf("category","text","Ex: Camisetas > Masculino")}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>PREÇO (R$)</label>{PF("price","number","0,00")}</div>
-                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>ESTOQUE</label>{PF("stock","number","0")}</div>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>PREÇO (R$)</label>{pf("price","number","0,00")}</div>
+                  <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>ESTOQUE</label>{pf("stock","number","0")}</div>
                 </div>
                 <div style={{marginBottom:12}}>
                   <label style={{color:C.muted,fontSize:11,display:"block",marginBottom:8}}>📦 MEDIDAS PARA FRETE</label>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>PESO (kg)</label>{PF("weight","number","0.5")}</div>
-                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>ALTURA (cm)</label>{PF("height","number","10")}</div>
-                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>LARGURA (cm)</label>{PF("width","number","15")}</div>
-                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>COMPRIMENTO (cm)</label>{PF("length","number","20")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>PESO (kg)</label>{pf("weight","number","0.5")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>ALTURA (cm)</label>{pf("height","number","10")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>LARGURA (cm)</label>{pf("width","number","15")}</div>
+                    <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>COMPRIMENTO (cm)</label>{pf("length","number","20")}</div>
                   </div>
                 </div>
                 <div style={{marginBottom:16}}>
@@ -738,11 +737,11 @@ const ClientDashboard=({user,token,onLogout})=>{
                 <div style={{fontFamily:FONT_D,fontSize:17,fontWeight:800,marginBottom:18}}>{STEPS[step].icon} {STEPS[step].title}</div>
 
                 {step===0&&<>
-                  <Field label="RAZÃO SOCIAL / NOME DA EMPRESA" k="company_name" placeholder="Ex: Loja XYZ LTDA"/>
-                  <Field label="CNPJ" k="cnpj" placeholder="00.000.000/0001-00"/>
-                  <Field label="E-MAIL COMERCIAL" k="email" type="email" placeholder="contato@empresa.com.br"/>
-                  <Field label="TELEFONE / WHATSAPP" k="phone" placeholder="(11) 99999-9999"/>
-                  <TextArea label="ENDEREÇO COMPLETO" k="address" placeholder="Rua, número, bairro, cidade, estado, CEP"/>
+                  {fld("RAZÃO SOCIAL / NOME DA EMPRESA","company_name","text","Ex: Loja XYZ LTDA")}
+                  {fld("CNPJ","cnpj","text","00.000.000/0001-00")}
+                  {fld("E-MAIL COMERCIAL","email","email","contato@empresa.com.br")}
+                  {fld("TELEFONE / WHATSAPP","phone","text","(11) 99999-9999")}
+                  {txa("ENDEREÇO COMPLETO","address","Rua, número, bairro, cidade, estado, CEP")}
                 </>}
                 {step===1&&<>
                   <div style={{marginBottom:14}}>
@@ -752,32 +751,32 @@ const ClientDashboard=({user,token,onLogout})=>{
                       {["VTEX","Shopify","Nuvemshop","Loja Integrada","Tray","WooCommerce","Magento","Outro"].map(p=><option key={p}>{p}</option>)}
                     </select>
                   </div>
-                  <Field label="LOGIN DA PLATAFORMA" k="platform_login" placeholder="usuário ou e-mail"/>
-                  <Field label="SENHA DA PLATAFORMA" k="platform_password" type="password" placeholder="••••••••"/>
-                  <Field label="LOGIN REGISTRO.BR" k="registrobr_login" placeholder="usuário do registro.br"/>
-                  <Field label="SENHA REGISTRO.BR" k="registrobr_password" type="password" placeholder="••••••••"/>
+                  {fld("LOGIN DA PLATAFORMA","platform_login","text","usuário ou e-mail")}
+                  {fld("SENHA DA PLATAFORMA","platform_password","password","••••••••")}
+                  {fld("LOGIN REGISTRO.BR","registrobr_login","text","usuário do registro.br")}
+                  {fld("SENHA REGISTRO.BR","registrobr_password","password","••••••••")}
                 </>}
                 {step===2&&<>
-                  <Field label="ERP UTILIZADO" k="erp" placeholder="Ex: Bling, Tiny, SAP, TOTVS..."/>
-                  <Field label="LOGIN DO ERP" k="erp_login" placeholder="usuário ou e-mail"/>
-                  <Field label="SENHA DO ERP" k="erp_password" type="password" placeholder="••••••••"/>
-                  <Field label="GATEWAY DE ENVIO" k="gateway_envio" placeholder="Ex: Melhor Envio, Frenet..."/>
-                  <Field label="GATEWAY DE PAGAMENTO" k="gateway_pagamento" placeholder="Ex: PagSeguro, Mercado Pago..."/>
-                  <Field label="SENHA DO CERTIFICADO DIGITAL" k="certificado_senha" type="password" placeholder="Senha do certificado A1/A3"/>
+                  {fld("ERP UTILIZADO","erp","text","Ex: Bling, Tiny, SAP, TOTVS...")}
+                  {fld("LOGIN DO ERP","erp_login","text","usuário ou e-mail")}
+                  {fld("SENHA DO ERP","erp_password","password","••••••••")}
+                  {fld("GATEWAY DE ENVIO","gateway_envio","text","Ex: Melhor Envio, Frenet...")}
+                  {fld("GATEWAY DE PAGAMENTO","gateway_pagamento","text","Ex: PagSeguro, Mercado Pago...")}
+                  {fld("SENHA DO CERTIFICADO DIGITAL","certificado_senha","password","Senha do certificado A1/A3")}
                   <div style={{background:C.warn+"10",border:`1px solid ${C.warn}30`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.warn}}>⚠ Envie o certificado .pfx por e-mail ou WhatsApp para a equipe técnica</div>
                 </>}
                 {step===3&&<>
-                  <TextArea label="CORES DA MARCA" k="cores" placeholder="Ex: Primária #FF0000, Secundária #000000"/>
+                  {txa("CORES DA MARCA","cores","Ex: Primária #FF0000, Secundária #000000")}
                   <div style={{background:C.accentDim,border:`1px solid ${C.accentBorder}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.accent,marginBottom:14}}>📎 Envie logo e manual da marca por e-mail ou WhatsApp</div>
-                  <TextArea label="INFORMAÇÕES DE ATENDIMENTO" k="atendimento_info" placeholder="Horário, telefone, e-mail de SAC..."/>
-                  <TextArea label="QUEM SOMOS" k="quem_somos" placeholder="Breve descrição da empresa..."/>
+                  {txa("INFORMAÇÕES DE ATENDIMENTO","atendimento_info","Horário, telefone, e-mail de SAC...")}
+                  {txa("QUEM SOMOS","quem_somos","Breve descrição da empresa...")}
                 </>}
                 {step===4&&<>
-                  <TextArea label="CATEGORIAS E SUBCATEGORIAS" k="categorias" placeholder="Ex: Camisetas > Masculino, Feminino&#10;Calças > Jeans, Social"/>
-                  <TextArea label="SITES DE REFERÊNCIA" k="referencias_sites" placeholder="Links de sites que usa como referência"/>
+                  {txa("CATEGORIAS E SUBCATEGORIAS","categorias","Ex: Camisetas > Masculino, Feminino&#10;Calças > Jeans, Social")}
+                  {txa("SITES DE REFERÊNCIA","referencias_sites","Links de sites que usa como referência")}
                 </>}
                 {step===5&&<>
-                  <TextArea label="REDES SOCIAIS" k="redes_sociais" placeholder="Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja"/>
+                  {txa("REDES SOCIAIS","redes_sociais","Instagram: @loja&#10;Facebook: /loja&#10;TikTok: @loja")}
                 </>}
 
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:20,gap:10}}>
@@ -813,23 +812,23 @@ const ClientDashboard=({user,token,onLogout})=>{
                 <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:20,marginBottom:20}} className="fade">
                   <div style={{fontFamily:FONT_D,fontSize:15,fontWeight:800,marginBottom:14}}>{editProd?"✏️ Editar Produto":"📦 Novo Produto"}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CÓD. PRODUTO</label>{PF("code","text","Opcional")}</div>
-                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>EAN / CÓD. BARRAS</label>{PF("ean","text","Opcional")}</div>
+                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CÓD. PRODUTO</label>{pf("code","text","Opcional")}</div>
+                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>EAN / CÓD. BARRAS</label>{pf("ean","text","Opcional")}</div>
                   </div>
-                  <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>NOME DO PRODUTO *</label>{PF("name","text","Nome completo do produto")}</div>
+                  <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>NOME DO PRODUTO *</label>{pf("name","text","Nome completo do produto")}</div>
                   <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>DESCRIÇÃO</label><textarea style={{...inp,minHeight:72,resize:"vertical"}} placeholder="Descrição detalhada do produto..." value={prodForm.description||""} onChange={e=>setProdForm(f=>({...f,description:e.target.value}))}/></div>
-                  <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CATEGORIA</label>{PF("category","text","Ex: Camisetas > Masculino")}</div>
+                  <div style={{marginBottom:10}}><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>CATEGORIA</label>{pf("category","text","Ex: Camisetas > Masculino")}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>PREÇO (R$)</label>{PF("price","number","0,00")}</div>
-                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>ESTOQUE</label>{PF("stock","number","0")}</div>
+                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>PREÇO (R$)</label>{pf("price","number","0,00")}</div>
+                    <div><label style={{color:C.muted,fontSize:11,display:"block",marginBottom:4}}>ESTOQUE</label>{pf("stock","number","0")}</div>
                   </div>
                   <div style={{marginBottom:12}}>
                     <label style={{color:C.muted,fontSize:11,display:"block",marginBottom:8}}>📦 MEDIDAS PARA FRETE</label>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>PESO (kg)</label>{PF("weight","number","0.5")}</div>
-                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>ALTURA (cm)</label>{PF("height","number","10")}</div>
-                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>LARGURA (cm)</label>{PF("width","number","15")}</div>
-                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>COMPRIMENTO (cm)</label>{PF("length","number","20")}</div>
+                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>PESO (kg)</label>{pf("weight","number","0.5")}</div>
+                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>ALTURA (cm)</label>{pf("height","number","10")}</div>
+                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>LARGURA (cm)</label>{pf("width","number","15")}</div>
+                      <div><label style={{color:C.muted,fontSize:10,display:"block",marginBottom:3}}>COMPRIMENTO (cm)</label>{pf("length","number","20")}</div>
                     </div>
                   </div>
                   <div style={{marginBottom:16}}>
